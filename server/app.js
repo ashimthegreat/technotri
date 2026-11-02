@@ -20,11 +20,11 @@ function createApp() {
       useDefaults: true,
       directives: {
         'default-src': ["'self'"],
-        'script-src': ["'self'"],
+        'script-src': ["'self'", ...(config.seo.ga4 ? ['https://www.googletagmanager.com'] : [])],
         'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
-        'img-src': ["'self'", 'data:', 'blob:'],
-        'connect-src': ["'self'"],
+        'img-src': ["'self'", 'data:', 'blob:', ...(config.seo.ga4 ? ['https://*.google-analytics.com', 'https://*.googletagmanager.com'] : [])],
+        'connect-src': ["'self'", ...(config.seo.ga4 ? ['https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://*.googletagmanager.com'] : [])],
         'form-action': ["'self'"],
         'frame-ancestors': ["'none'"],
         'upgrade-insecure-requests': config.cookieSecure ? [] : null
@@ -33,6 +33,22 @@ function createApp() {
     crossOriginEmbedderPolicy: false
   }));
   app.use(compression());
+
+  /* One address per page: send www/other hostnames to SITE_URL's host, drop trailing slashes and /index.html. */
+  const siteHost = new URL(config.siteUrl).host;
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    if (req.path.startsWith('/api/')) return next();
+    const host = req.get('host') || '';
+    const local = /^(localhost|127\.|\[::1\]|0\.0\.0\.0)/.test(host);
+    let p = req.path;
+    if (p === '/index.html') p = '/';
+    else if (p.length > 1 && p.endsWith('/')) p = p.replace(/\/+$/, '');
+    const query = req.originalUrl.slice(req.path.length);
+    if (config.isProd && !local && host && host !== siteHost) return res.redirect(301, config.siteUrl + p + query);
+    if (p !== req.path) return res.redirect(301, p + query);
+    next();
+  });
   app.use(cookieParser());
   app.use(express.json({ limit: '200kb' }));
 
@@ -59,17 +75,28 @@ function createApp() {
   app.use('/api', api);
 
   /* ---------- SEO files ---------- */
-  app.get('/robots.txt', (req, res) => res.type('text/plain').send(`User-agent: *\nDisallow: /api/\nDisallow: /admin\nSitemap: ${config.siteUrl}/sitemap.xml\n`));
-  app.get('/sitemap.xml', async (req, res, next) => { try { res.type('application/xml').send(await seo.sitemap()); } catch (e) { next(e); } });
+  app.get('/robots.txt', (req, res) => res.type('text/plain').set('Cache-Control', 'public, max-age=3600').send(seo.robotsTxt()));
+  app.get('/sitemap.xml', async (req, res, next) => { try { res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(await seo.sitemap()); } catch (e) { next(e); } });
+  app.get(['/feed/google.xml', '/feed/products.xml'], async (req, res, next) => { try { res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(await seo.merchantFeed()); } catch (e) { next(e); } });
 
   /* ---------- static files ---------- */
   app.use('/uploads', express.static(config.uploadDir, { maxAge: '30d', fallthrough: false }));
-  app.use(express.static(PUBLIC, { index: false, maxAge: config.isProd ? '1h' : 0 }));
+  // Scripts and styles are linked with ?v=<content hash>, so they can be cached for a year.
+  app.use((req, res, next) => {
+    if (req.query.v) res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    else if (/^\/img\//.test(req.path)) res.set('Cache-Control', 'public, max-age=2592000');
+    else res.set('Cache-Control', config.isProd ? 'public, max-age=3600' : 'no-cache');
+    next();
+  });
+  app.use(express.static(PUBLIC, { index: false, cacheControl: false }));
 
   /* ---------- storefront pages (single-page app with server-rendered meta tags) ---------- */
   app.get(/^\/(?!api\/|uploads\/).*/, async (req, res, next) => {
     if (path.extname(req.path)) return res.status(404).send('Not found');
-    try { res.type('html').set('Cache-Control', 'no-cache').send(await seo.render(req.path)); } catch (e) { next(e); }
+    try {
+      const { status, html } = await seo.render(req.path);
+      res.status(status).type('html').set('Cache-Control', 'no-cache').send(html);
+    } catch (e) { next(e); }
   });
 
   // eslint-disable-next-line no-unused-vars

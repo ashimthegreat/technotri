@@ -536,3 +536,12 @@ nav.strip a .pd{display:inline-block;width:7px;height:7px;border-radius:50%;marg
 .hero{border-top:3px solid var(--red)}
 
 .slide .kicker{color:var(--red)}
+
+/* Server-rendered copy of the page shown before the app starts (and to crawlers without JavaScript) */
+.ssr{display:grid;gap:14px;max-width:80ch;padding-block:8px 40px}
+.ssr h1{font-size:clamp(24px,4vw,34px);line-height:1.15}
+.ssr h2{font-size:19px;margin-top:10px}
+.ssr ul{padding-left:20px;display:grid;gap:4px}
+.ssr table{border-collapse:collapse;width:100%;font-size:14px}
+.ssr th,.ssr td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.ssr blockquote{margin:0;padding-left:14px;border-left:3px solid var(--line)}

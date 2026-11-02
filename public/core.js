@@ -305,20 +305,30 @@ function route(keepScroll){
   if(after) after();
   closeOverlay();UI.mega(false);document.getElementById('suggest').hidden=true;
   UI.nav();UI.counts();
-  const t=document.querySelector('#app h1');document.title=(t&&name!=='home'?t.textContent.trim().slice(0,60)+' · ':'')+'Technotri Store';
-  if(!keepScroll) window.scrollTo(0,0);
+  if(firstRoute) firstRoute=false; // keep the title the server wrote for this URL
+  else document.title=pageTitle(name,arg);
+  if(!keepScroll){window.scrollTo(0,0);const cl=document.querySelector('link[rel=canonical]');if(cl)cl.href=location.origin+location.pathname;window.dispatchEvent(new Event('tt:route'))}
+}
+/* Same title patterns as server/seo.js, used after in-app navigation. */
+let firstRoute=true;
+const shortName=(n,l=55)=>n.length<=l?n:n.split(/,| – | - /)[0].slice(0,l);
+function pageTitle(name,arg){
+  if(name==='p'){const p=prod(arg);if(p)return shortName(p.name)+' Price in Nepal | Technotri'}
+  if(name==='c'){const c=cat(arg);if(c)return c.name+' Price in Nepal – Buy Online | Technotri'}
+  if(name==='home')return 'Technotri Store – Solar, Inverter, UPS, Battery & Wi-Fi Price in Nepal';
+  const t=document.querySelector('#app h1');return (t?t.textContent.trim().slice(0,60)+' | ':'')+'Technotri Store';
 }
 const refresh=()=>{const y=window.scrollY;route(true);window.scrollTo(0,y)};
 const setAfter=fn=>{after=fn};
 const loadingHTML=(label='Loading…')=>`<div class="empty" aria-busy="true"><span>${esc(label)}</span></div>`;
 /** A view that needs server data: shows a loading state, then renders when the data arrives. */
 function asyncView(load,render,label){
-  const seq=routeSeq;
+  const seq=routeSeq, keepTitle=routeSeq===1;
   setAfter(()=>{
     Promise.resolve().then(load).then(data=>{
       if(seq!==routeSeq) return;
       after=null;const app=document.getElementById('app');app.innerHTML=render(data);if(after)after();
-      const t=document.querySelector('#app h1');if(t)document.title=t.textContent.trim().slice(0,60)+' · Technotri Store';
+      if(!keepTitle)document.title=pageTitle(current().split('-')[0],'');
     }).catch(e=>{
       if(seq!==routeSeq) return;
       if(e.status===401&&!db.user){go('signin',true);return}

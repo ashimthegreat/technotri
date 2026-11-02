@@ -89,7 +89,21 @@ Click **Restart** in **Setup Node.js App**, then open https://technotri.com.np.
 - Make sure `public/uploads` is writable. It normally is; if photo upload fails, set it to 755 in File Manager.
 - In the admin under **Delivery & settings**, check the company details printed on invoices and add your bank account details for bank-transfer orders.
 - Place one test order with cash on delivery. Mark it delivered in **Admin → Orders**. Check that the stock went down.
-- Submit `https://technotri.com.np/sitemap.xml` in Google Search Console.
+- Run `npm run clear-sample-reviews` once before launch (see SEO below).
+
+## 8. Get found on Google (SEO)
+
+The site already sends search engines a complete page for every URL, with titles like "… Price in Nepal", product prices, stock and structured data. To connect it to Google and Bing:
+
+1. **Remove the sample reviews.** The demo catalogue has made-up star ratings. Run `npm run clear-sample-reviews` in Terminal. Real customer reviews will build up from orders. Invented ratings mislead buyers, and Google penalises them.
+2. **Google Search Console** (search.google.com/search-console): add the property `https://technotri.com.np`. Choose the *HTML tag* method, copy only the `content="…"` value into the `GOOGLE_SITE_VERIFICATION` environment variable, restart, then click Verify. After that, submit the sitemap `https://technotri.com.np/sitemap.xml`.
+3. **Bing Webmaster Tools**: import from Search Console, or use the meta tag with `BING_SITE_VERIFICATION`. Bing also feeds DuckDuckGo and ChatGPT search.
+4. **Google Merchant Center** (free listings in the Shopping tab and Google Images): add the product feed URL `https://technotri.com.np/feed/google.xml`. Set the fetch to daily. The same feed works for a Facebook/Instagram shop catalogue.
+5. **Google Business Profile**: create or claim "Technotri Pvt. Ltd." at Kumaristhan, Kathmandu, with the same phone number and hours as the site, and link it to technotri.com.np. This is what shows up for "inverter shop near me" and on Google Maps.
+6. **Analytics (optional)**: create a GA4 property and set `GA4_ID=G-XXXXXXX`. Page views are tracked on every in-app navigation.
+7. **Point the old site here.** Add a prominent link on technotrinepal.com to technotri.com.np. If old product pages are retired, 301-redirect them to the matching new pages.
+
+Check a product page with Google's Rich Results Test (search.google.com/test/rich-results). It should find *Product*, *Breadcrumb* and, once real reviews exist, *Review snippets*.
 
 ## Updating
 

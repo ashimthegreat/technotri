@@ -820,12 +820,7 @@ Views.lab=()=>`${crumbs([['Technotri Lab']])}<div class="guide"><article class="
   <aside class="stack"><h3>Highest scores</h3>${[...db().products].filter(p=>p.lab).sort((a,b)=>b.lab.score-a.lab.score).slice(0,5).map(p=>`<a class="panel tight row" style="flex-wrap:nowrap;color:var(--ink)" href="#p-${p.id}">${labBadge(p)}<span class="small">${esc(p.name)}</span></a>`).join('')}</aside></div>`;
 
 /* ================= SUPPORT ================= */
-const FAQ=[['How long does delivery take?','Kathmandu Valley: next working day for orders before 4 PM. Pokhara, Chitwan, Butwal, Biratnagar and Birgunj: about 3 working days. Other districts: about 5. We do not deliver on Saturdays.'],
- ['Do you give a VAT invoice?','Yes. Every order gets an electronic VAT invoice, including cash on delivery. Add your business PAN at checkout to have it printed on the invoice.'],
- ['Can I return a product?','Unused products in sealed packaging can be returned within 7 days of delivery. Batteries that have been filled with acid, cut cable and opened fibre connectors cannot be returned.'],
- ['How do warranty claims work?','Submit the form below with your order number and the product serial number. We inspect at our service desk in Kumaristhan; for batteries and inverters we can collect from you inside the Valley.'],
- ['Do you install?','Yes. Inverters, solar systems, networks and CCTV across Kathmandu Valley, and solar projects nationwide. Tick installation at checkout or request a quote.'],
- ['When do I get my refund?','Within 7 days of approving the return, by bank transfer or cash at our store.']];
+const FAQ=(window.TT_CONTENT&&window.TT_CONTENT.FAQ)||[];
 Views.support=()=>`${crumbs([['Help & support']])}<h1>Help and support</h1>
   <div class="two"><div class="stack">
    <section class="panel faq"><h3>Frequently asked questions</h3>${FAQ.map(([q,a])=>`<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</section>

@@ -37,6 +37,7 @@ const config = {
     from: env('MAIL_FROM', 'Technotri Store <info@technotri.com.np>'),
     notify: env('ORDER_NOTIFY_EMAIL', '')
   },
+  seo: { google: env('GOOGLE_SITE_VERIFICATION', ''), bing: env('BING_SITE_VERIFICATION', ''), ga4: env('GA4_ID', '') },
   admin: { email: env('ADMIN_EMAIL', ''), password: env('ADMIN_PASSWORD', ''), name: env('ADMIN_NAME', 'Store Admin') }
 };
 

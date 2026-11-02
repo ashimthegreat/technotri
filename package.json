@@ -13,7 +13,9 @@
     "seed": "knex seed:run",
     "create-admin": "node scripts/create-admin.js",
     "setup": "knex migrate:latest && knex seed:run",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "build:images": "node scripts/build-images.js",
+    "clear-sample-reviews": "node scripts/clear-sample-reviews.js"
   },
   "repository": {
     "type": "git",

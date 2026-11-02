@@ -26,7 +26,15 @@ One Node.js app serves both the storefront and the API, with a MySQL database be
 - Express 5, knex + mysql2, migrations and seed data.
 - Prices are computed on the server; the server is authoritative for every total that is charged. Stock is checked and decremented inside a transaction.
 - Auth uses bcrypt password hashes and a JWT in an httpOnly cookie. CSRF is blocked with a required request header. Login and forms are rate-limited. Security headers come from helmet (CSP).
-- SEO: each URL gets server-rendered title, description, Open Graph tags and Product JSON-LD. `sitemap.xml` and `robots.txt` are generated.
+- SEO (`server/seo.js`): every URL is answered with real HTML, so crawlers that don't run JavaScript still see a full page:
+  - per-page title, description, canonical and robots; correct 404s; noindex on cart, account and admin pages
+  - Open Graph and X cards with 1200×630 share images
+  - schema.org JSON-LD: Organization/ElectronicsStore, WebSite search, Product with Offer (NPR price, stock, shipping, 7-day return policy) and genuine reviews only, BreadcrumbList, CollectionPage, Article/HowTo, FAQPage
+  - a server-rendered copy of the page content (headings, prices, specs, internal links)
+  - `sitemap.xml` with lastmod and images; `robots.txt`; a Google Merchant / Facebook catalogue feed at `/feed/google.xml`
+  - one canonical host, no trailing slashes, long-cache versioned assets
+  - optional Search Console, Bing and GA4 tags via environment variables
+  - `npm run build:images` re-renders the product and share images in `public/img/` (needs Playwright; the output is committed)
 - Optional SMTP email for order confirmations, status changes and dealer decisions.
 
 ## Run it locally
@@ -40,6 +48,8 @@ npm run setup                 # create tables + load the catalogue + create the 
 npm run dev                   # http://localhost:3000
 npm test                      # pricing unit tests
 ```
+
+Before launch, run `npm run clear-sample-reviews` to remove the demo catalogue's sample ratings.
 
 To add another staff login later, run `npm run create-admin -- email@example.com "Full Name" [password] [admin|staff]`.
 
