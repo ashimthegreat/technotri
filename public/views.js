@@ -212,7 +212,7 @@ function renderResults(){
     box.innerHTML=`<div class="tbl-wrap"><table class="data"><thead><tr><th>Compare</th><th>Product</th><th>Price</th><th>Stock</th><th>Lab</th>${keys.map(k=>`<th>${esc(k)}</th>`).join('')}<th></th></tr></thead><tbody>${items.map(p=>`<tr>
       <td><input type="checkbox" data-c="cmp" data-id="${p.id}" ${db().compare.includes(p.id)?'checked':''} aria-label="Compare ${esc(p.name)}"></td>
       <td style="min-width:240px"><div class="row" style="flex-wrap:nowrap;align-items:flex-start"><span style="width:56px;flex:none;background:var(--surface-2);border-radius:4px">${pic(p)}</span><span><a href="#p-${p.id}" style="color:var(--ink);font-weight:600">${esc(p.name)}</a><br><span class="mono small muted">${esc(p.model||'')}</span></span></div></td>
-      <td class="price">${p.quote?'Quote':npr(unitPrice(p))}${p.breaks?`<br><span class="small muted">${p.breaks.length} qty breaks</span>`:''}</td><td>${stockLine(p)}${!p.quote&&p.stock>0?`<br><span class="mono small muted">${p.stock} units</span>`:''}</td><td>${labBadge(p)||'—'}</td>
+      <td class="price">${p.quote?(p.refPrice?'~'+npr(p.price):'Quote'):npr(unitPrice(p))}${p.breaks?`<br><span class="small muted">${p.breaks.length} qty breaks</span>`:''}</td><td>${stockLine(p)}${!p.quote&&p.stock>0?`<br><span class="mono small muted">${p.stock} units</span>`:''}</td><td>${labBadge(p)||'—'}</td>
       ${keys.map(k=>`<td class="mono small">${esc(p.specs[k]||'—')}</td>`).join('')}
       <td>${p.quote?`<button class="btn sm ghost" data-a="quote" data-id="${p.id}">Quote</button>`:p.stock>0?`<button class="btn sm buy" data-a="add" data-id="${p.id}">Add</button>`:''}</td></tr>`).join('')}</tbody></table></div>`;
   }
@@ -309,7 +309,7 @@ Views.p=id=>{
     </div>
     <aside class="buybox" aria-label="Buy">
       ${priceLine(p,true)}
-      ${p.quote?`<p class="small muted">Priced after we check your site and load. Quotes in one working day.</p><button class="btn buy lg block" data-a="quote" data-id="${p.id}">Add to quote</button><a class="btn ghost block" href="#quote">Go to quote request</a>`:`
+      ${p.quote?`<p class="small muted">Priced after we check your site and load. Quotes in one working day.</p><button class="btn buy lg block" data-a="quote" data-id="${p.id}">Get a quote</button><a class="btn ghost block" href="#quote">Go to quote request</a>`:`
       <span class="small muted">Incl. 13% VAT${isDealer()?' · dealer price':''}</span>
       ${p.breaks?`<table class="breaks"><thead><tr><th>Qty</th><th>Unit price</th></tr></thead><tbody>${p.breaks.map(([q,pr],i)=>{const nx=p.breaks[i+1];const on=G.qty>=q&&(!nx||G.qty<nx[0]);return `<tr class="${on?'on':''}"><td>${q}${nx?'–'+(nx[0]-1):'+'}</td><td>${npr(Math.min(pr,unitPrice({...p,breaks:null})))}</td></tr>`}).join('')}</tbody></table>`:''}
       ${stockLine(p)}
@@ -411,7 +411,7 @@ Views.compare=()=>{
   if(!ps.length) return `${crumbs([['Compare']])}<h1>Compare products</h1><div class="empty">Tick “Compare” on up to 4 products to see them side by side.<a class="btn" href="#home">Browse products</a></div>`;
   const keys=[...new Set(ps.flatMap(p=>Object.keys(p.specs)))];
   const rows=[
-    ['Price',p=>p.quote?'Quote':npr(unitPrice(p))],['Rating',p=>{const [a,n]=ratingOf(p);return n?a.toFixed(1)+' ★ ('+n+')':'—'}],['Lab score',p=>p.lab?p.lab.score.toFixed(1):'—'],
+    ['Price',p=>p.quote?(p.refPrice?'Guide '+npr(p.price)+', by quote':'Quote'):npr(unitPrice(p))],['Rating',p=>{const [a,n]=ratingOf(p);return n?a.toFixed(1)+' ★ ('+n+')':'—'}],['Lab score',p=>p.lab?p.lab.score.toFixed(1):'—'],
     ['Availability',p=>p.quote?'Made to order':p.stock>0?'In stock':'Out of stock'],['Warranty',p=>p.warranty||'—'],['Brand',p=>p.brand],
     ...keys.map(k=>[k,p=>p.specs[k]||'—'])];
   return `${crumbs([['Compare']])}<div class="between"><h1>Compare ${ps.length} products</h1><label class="check"><input type="checkbox" data-c="cmpdiff" ${cmpDiff?'checked':''}> Highlight differences</label></div>

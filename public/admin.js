@@ -12,6 +12,9 @@ const navOn=on=>on.split('-')[0]==='order'?'orders':on.split('-')[0]==='customer
 const nav=on0=>{const on=navOn(on0);return `<nav class="sidenav" aria-label="Admin">${TABS.map(([h,l])=>{const n=h==='orders'?pending.orders:h==='quotes'?(pending.quotes||0)+(pending.service||0):h==='dealers'?pending.dealers:h==='reviews'?pending.questions:0;return `<a href="#admin${h?'-'+h:''}" class="${on===h?'on':''}">${l}${n?` <span class="badge deal" style="margin-left:4px">${n}</span>`:''}</a>`}).join('')}</nav>`};
 const shell=(on,title,body)=>`<div class="between"><div><span class="eyebrow">Technotri staff · signed in as ${esc(db().user.name)} (${esc(db().user.role)})</span><h1>${esc(title)}</h1></div><a class="btn sm ghost" href="#home">View store</a></div>
  <div class="acct">${nav(on)}<div class="stack" style="min-width:0">${body}</div></div>`;
+const MODES=[['buy','Buy online (price + Add to cart)'],['quote','Get quote, hide price'],['quote_price','Get quote, show guide price']];
+const modeOf=p=>!p.quote?'buy':p.showPrice?'quote_price':'quote';
+const modeBody=m=>({quote:m!=='buy',show_price:m==='quote_price'});
 const pill=s=>`<span class="pill ${esc(String(s).replace(/\s+/g,'-'))}">${esc(s)}</span>`;
 const sel=(name,opts,val,attrs='')=>`<select name="${name}" ${attrs}>${opts.map(o=>{const [v,l]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}" ${String(v)===String(val??'')?'selected':''}>${esc(l)}</option>`}).join('')}</select>`;
 
@@ -53,7 +56,8 @@ function productForm(p){
     <label class="field"><span>Model number</span><input type="text" name="model" value="${esc(p?.model||'')}"></label>
     <label class="field"><span>Category</span>${sel('cat',cats.map(x=>[x.id,x.name]),c?.id,'data-c="apCat"')}</label>
     <label class="field"><span>Sub-category</span><input type="text" name="sub" list="apSubs" value="${esc(p?.sub||'')}" required><datalist id="apSubs">${(c?.subs||[]).map(s=>`<option value="${esc(s)}">`).join('')}</datalist></label>
-    <label class="field"><span>Price (Rs, VAT incl.; blank = price on quote)</span><input type="number" min="0" name="price" value="${p&&!p.quote?p.price:''}"></label>
+    <label class="field full"><span>How customers buy it</span>${sel('mode',MODES,p?modeOf(p):'buy')}</label>
+    <label class="field"><span>Price (Rs, VAT incl.)</span><input type="number" min="0" name="price" value="${p?.price??''}"></label>
     <label class="field"><span>MRP / was price (Rs)</span><input type="number" min="0" name="mrp" value="${p?.mrp??''}"></label>
     <label class="field"><span>Stock</span><input type="number" min="0" name="stock" value="${p?.stock??0}"></label>
     <label class="field"><span>Warranty</span><input type="text" name="warranty" value="${esc(p?.warranty||'')}" placeholder="2 years Nepal warranty"></label>
@@ -76,12 +80,13 @@ PAGES.products=()=>asyncView(loadProducts,list=>{
   const ed=editing==='new'?productForm(null):editing?productForm(list.find(p=>p.id===editing)):'';
   return shell('products','Products',`${ed}
    <div class="between"><form data-f="apSearch" class="row"><input type="search" name="q" value="${esc(pq)}" placeholder="Search name, model or brand" aria-label="Search products"><button class="btn sm ghost">Search</button></form><button class="btn sm" data-a="apNew">Add product</button></div>
-   <details class="panel"><summary><b>Update many products with a spreadsheet</b></summary><div class="stack" style="margin-top:10px"><p class="small muted">Download the list, change prices, MRP, stock or “active” (1 = shown, 0 = hidden) in Excel or Google Sheets, save as CSV, then upload it. Rows are matched by id; new ids are ignored.</p>
+   <details class="panel"><summary><b>Update many products with a spreadsheet</b></summary><div class="stack" style="margin-top:10px"><p class="small muted">Download the list, change prices, MRP, stock, “mode” (buy, quote, or quote_price) or “active” (1 = shown, 0 = hidden) in Excel or Google Sheets, save as CSV, then upload it. Rows are matched by id; new ids are ignored.</p>
     <div class="row" style="flex-wrap:wrap"><a class="btn sm ghost" href="/api/admin/products.csv" download>Download product list (CSV)</a><form data-f="apImport" class="row"><input type="file" name="file" accept=".csv,text/csv" required><button class="btn sm">Upload changes</button></form></div><div id="apImpMsg"></div></div></details>
    <p class="small muted">${rows.length} of ${list.length} products. Change price, stock or visibility in the row, then press Save.</p>
-   <div class="tbl-wrap"><table class="data"><thead><tr><th>Product</th><th>Price (Rs)</th><th>MRP</th><th>Stock</th><th>Live</th><th></th></tr></thead><tbody>
+   <div class="tbl-wrap"><table class="data"><thead><tr><th>Product</th><th>Sold as</th><th>Price (Rs)</th><th>MRP</th><th>Stock</th><th>Live</th><th></th></tr></thead><tbody>
    ${rows.map(p=>`<tr data-row="${esc(p.id)}"><td><b>${esc(p.name)}</b><br><span class="small muted mono">${esc(p.id)} · ${esc(p.brand)}</span></td>
-     <td><input type="number" min="0" value="${p.quote?'':p.price}" placeholder="Quote" data-k="price" style="width:100px" aria-label="Price"></td>
+     <td>${sel('m',[['buy','Buy online'],['quote','Quote, no price'],['quote_price','Quote + guide price']],modeOf(p),'data-k="mode" aria-label="How customers buy it" style="width:150px"')}</td>
+     <td><input type="number" min="0" value="${p.price??''}" data-k="price" style="width:100px" aria-label="Price"></td>
      <td><input type="number" min="0" value="${p.mrp??''}" data-k="mrp" style="width:100px" aria-label="MRP"></td>
      <td><input type="number" min="0" value="${p.stock}" data-k="stock" style="width:80px" aria-label="Stock"></td>
      <td><input type="checkbox" data-k="active" ${p.active!==false?'checked':''} aria-label="Visible"></td>
@@ -95,8 +100,9 @@ A.apClose=()=>{editing=null;refresh()};
 C.apCat=el=>{const c=D.CATS.find(x=>x.id===el.value);document.getElementById('apSubs').innerHTML=(c?.subs||[]).map(s=>`<option value="${esc(s)}">`).join('')};
 A.apRow=async el=>{
   const tr=el.closest('tr');const v=k=>tr.querySelector(`[data-k="${k}"]`);
-  const price=v('price').value===''?null:+v('price').value;
-  const body={price,quote:price===null,mrp:v('mrp').value===''?price:+v('mrp').value,stock:+v('stock').value||0,active:v('active').checked};
+  const price=v('price').value===''?null:+v('price').value;const mode=v('mode').value;
+  if(mode==='buy'&&price===null){toast('Enter a price to sell online, or choose a quote option.');return}
+  const body={price,...modeBody(mode),mrp:v('mrp').value===''?price:+v('mrp').value,stock:+v('stock').value||0,active:v('active').checked};
   busy(el,true,'Saving…');
   try{await api('/admin/products/'+encodeURIComponent(el.dataset.id),{method:'PUT',body});toast('Saved');reloadCatalog().catch(()=>{})}catch(e){toast(e.message)}
   busy(el,false);
@@ -105,7 +111,8 @@ F.aprod=async f=>{
   const id=f.dataset.id;const num=x=>x.value===''?null:+x.value;
   const specs={};f.specs.value.split('\n').forEach(l=>{const i=l.indexOf(':');if(i>0){const k=l.slice(0,i).trim(),v=l.slice(i+1).trim();if(k&&v)specs[k]=v}});
   const price=num(f.price);
-  const body={name:f.name.value.trim(),brand:f.brand.value.trim(),model:f.model.value.trim(),cat:f.cat.value,sub:f.sub.value.trim(),price,quote:price===null,mrp:num(f.mrp)??price,stock:+f.stock.value||0,warranty:f.warranty.value.trim(),
+  if(f.mode.value==='buy'&&price===null){document.getElementById('apErr').innerHTML=errBox('Enter a price to sell this online, or choose a “Get quote” option.');return}
+  const body={name:f.name.value.trim(),brand:f.brand.value.trim(),model:f.model.value.trim(),cat:f.cat.value,sub:f.sub.value.trim(),price,...modeBody(f.mode.value),mrp:num(f.mrp)??price,stock:+f.stock.value||0,warranty:f.warranty.value.trim(),
     tags:f.tags.value.split(',').map(s=>s.trim()).filter(Boolean),hl:f.hl.value.split('\n').map(s=>s.trim()).filter(Boolean),specs,active:f.active.checked,
     art:f.art.value||undefined,fbt:f.fbt.value.split(',').map(s=>s.trim()).filter(Boolean),
     breaks:f.breaks.value.split('\n').map(l=>l.split(':').map(x=>+x.replace(/[^0-9]/g,''))).filter(x=>x.length===2&&x[0]>0&&x[1]>0).sort((a,b)=>a[0]-b[0])};
@@ -223,7 +230,7 @@ const PILLARS=[['energy','Energy (amber)'],['power','Power (green)'],['net','Net
 F.apImport=async f=>{const file=f.file.files[0];if(!file)return;const b=f.querySelector('button');busy(b,true,'Uploading…');
   try{const text=await file.text();const res=await fetch('/api/admin/products/import',{method:'POST',credentials:'same-origin',headers:{'X-Requested-With':'technotri','Content-Type':'text/csv'},body:text});
     const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||'Upload failed.');
-    document.getElementById('apImpMsg').innerHTML=`<div class="alert ok">${data.updated} products updated.${data.missing.length?` Not found (skipped): ${esc(data.missing.slice(0,20).join(', '))}`:''}</div>`;
+    document.getElementById('apImpMsg').innerHTML=`<div class="alert ok">${data.updated} products updated.${data.missing.length?` Not found (skipped): ${esc(data.missing.slice(0,20).join(', '))}.`:''}${data.skipped&&data.skipped.length?` Kept as quote because they have no price: ${esc(data.skipped.slice(0,20).join(', '))}.`:''}</div>`;
     productsCache=null;reloadCatalog().catch(()=>{});setTimeout(refresh,1500)}
   catch(e){document.getElementById('apImpMsg').innerHTML=errBox(e.message)}busy(b,false)};
 C.acActive=async el=>{try{await api('/admin/coupons/'+encodeURIComponent(el.dataset.code),{method:'PUT',body:{active:el.checked}});toast(el.checked?'Coupon switched on':'Coupon switched off');reloadCatalog().catch(()=>{})}catch(e){toast(e.message);refresh()}};
@@ -295,7 +302,10 @@ const catForm=c=>`<form class="panel stack" data-f="acat" data-id="${c?esc(c.id)
   <label class="field"><span>Illustration</span>${sel('art',artKinds(),c?.art||'')}</label>
   <label class="field"><span>Dealer discount %</span><input type="number" name="dealer" min="0" max="60" step="0.5" value="${c?Math.round(c.dealer_pct*1000)/10:10}"></label>
   <label class="field"><span>Menu position</span><input type="number" name="sort" value="${c?.sort??''}"></label></div>
+  ${c&&c.products?`<div class="row" style="flex-wrap:wrap;gap:8px;border-top:1px solid var(--line);padding-top:10px"><span class="small"><b>Switch products to</b></span>${sel('bulkMode',MODES,'buy','aria-label="Sell as"')}<span class="small">in</span>${sel('bulkSub',[['','all sub-categories'],...c.subs],'','aria-label="Sub-category"')}<button type="button" class="btn sm ghost" data-a="acatMode" data-id="${esc(c.id)}">Apply</button></div>`:''}
   ${isAdmin()?`<div class="row"><button class="btn sm">${c?'Save':'Add category'}</button>${c&&!c.products?`<button type="button" class="linkbtn" data-a="acatDel" data-id="${esc(c.id)}">Delete</button>`:''}</div>`:''}</form>`;
+A.acatMode=async el=>{const f=el.closest('form');const body={mode:f.bulkMode.value};if(f.bulkSub.value)body.sub=f.bulkSub.value;
+  try{const r=await api('/admin/categories/'+encodeURIComponent(el.dataset.id)+'/mode',{method:'PUT',body});toast(`${r.updated} products updated${r.skipped?`; ${r.skipped} without a price stay as quote`:''}`);productsCache=null;reloadCatalog().catch(()=>{})}catch(e){toast(e.message)}};
 F.acat=async f=>{const id=f.dataset.id;const body={name:f.name.value.trim(),blurb:f.blurb.value.trim(),subs:f.subs.value.split('\n').map(s=>s.trim()).filter(Boolean),pillar:f.pillar.value,art:f.art.value,dealer_pct:(+f.dealer.value||0)/100};
   if(f.sort.value!=='')body.sort=+f.sort.value;if(!id)body.id=f.id.value.trim();
   try{await api(id?'/admin/categories/'+encodeURIComponent(id):'/admin/categories',{method:id?'PUT':'POST',body});toast('Category saved');await reloadCatalog();T.buildHeader();refresh()}catch(e){toast(e.message)}};

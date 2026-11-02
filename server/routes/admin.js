@@ -50,13 +50,18 @@ r.get('/stats', async (req, res) => {
 });
 
 /* ---------- products ---------- */
-r.get('/products', async (req, res) => res.json({ products: await catalog.listProducts({ includeInactive: true }) }));
+r.get('/products', async (req, res) => {
+  // Staff always see the real price, even for "Get quote" products whose price is hidden in the store.
+  const [list, raw] = await Promise.all([catalog.listProducts({ includeInactive: true }), db('products').select('id', 'price', 'mrp', 'show_price', 'sort')]);
+  const m = new Map(raw.map((x) => [x.id, x]));
+  res.json({ products: list.map((p) => { const x = m.get(p.id) || {}; return { ...p, price: x.price, mrp: x.mrp, showPrice: !!x.show_price, sort: x.sort }; }) });
+});
 
 const productSchema = z.object({
   name: z.string().trim().min(2).max(255), brand: z.string().trim().min(1).max(120), model: z.string().trim().max(120).optional().or(z.literal('')),
   cat: z.string().min(1), sub: z.string().min(1).max(120), art: z.string().max(40).optional(),
   price: z.coerce.number().int().min(0).nullable().optional(), mrp: z.coerce.number().int().min(0).nullable().optional(),
-  quote: z.boolean().optional(), stock: z.coerce.number().int().min(0).max(1000000).optional(),
+  quote: z.boolean().optional(), show_price: z.boolean().optional(), stock: z.coerce.number().int().min(0).max(1000000).optional(),
   tags: z.array(z.string().max(20)).max(10).optional(), hl: z.array(z.string().max(300)).max(12).optional(),
   specs: z.record(z.string(), z.string().max(300)).optional(), warranty: z.string().max(120).optional().or(z.literal('')),
   breaks: z.array(z.tuple([z.number().int().min(1), z.number().int().min(0)])).max(10).nullable().optional(),
@@ -73,6 +78,7 @@ function productRow(d) {
   if (d.price !== undefined) row.price = d.price;
   if (d.mrp !== undefined) row.mrp = d.mrp;
   if (d.quote !== undefined) row.quote_only = d.quote;
+  if (d.show_price !== undefined) row.show_price = d.show_price;
   if (d.stock !== undefined) row.stock = d.stock;
   if (d.tags !== undefined) row.tags = toJson(d.tags);
   if (d.hl !== undefined) row.highlights = toJson(d.hl);
@@ -91,6 +97,7 @@ r.post('/products', async (req, res) => {
   if (!(await db('categories').where({ id: d.cat }).first())) throw new HttpError(400, 'Choose a valid category.');
   let id = slugify(d.model || d.name) || 'item';
   if (await db('products').where({ id }).first()) id = `${id}-${crypto.randomInt(100, 999)}`;
+  if (d.quote === false && d.price == null) throw new HttpError(400, 'Enter a price to sell this online, or choose “Get quote”.');
   const row = { id, ...productRow(d), quote_only: d.quote ?? d.price == null, mrp: d.mrp ?? d.price ?? null, tags: toJson(d.tags || ['new']), highlights: toJson(d.hl || []), specs: toJson(d.specs || {}), fbt: toJson(d.fbt || []), stock: d.stock || 0, sort: -1 };
   await db('products').insert(row);
   res.status(201).json({ product: await catalog.getProduct(id) });
@@ -101,6 +108,9 @@ r.put('/products/:id', async (req, res) => {
   const before = await db('products').where({ id: req.params.id }).first();
   if (!before) throw new HttpError(404, 'Product not found.');
   const row = productRow(d);
+  const willQuote = row.quote_only !== undefined ? row.quote_only : !!before.quote_only;
+  const willPrice = row.price !== undefined ? row.price : before.price;
+  if (!willQuote && willPrice == null) throw new HttpError(400, 'Enter a price to sell this online, or choose “Get quote”.');
   if (row.price !== undefined && row.price !== null && (before.mrp == null || before.mrp < row.price) && row.mrp === undefined) row.mrp = row.price;
   row.updated_at = sqlNow();
   await db('products').where({ id: before.id }).update(row);
@@ -357,6 +367,15 @@ r.put('/categories/:id', requireAdmin, async (req, res) => {
   if (!n) throw new HttpError(404, 'Category not found.');
   res.json({ ok: true });
 });
+/* switch a whole category (or one sub-category) between selling online and quotes */
+r.put('/categories/:id/mode', async (req, res) => {
+  const d = check(z.object({ mode: z.enum(['buy', 'quote', 'quote_price']), sub: z.string().max(120).optional() }), req.body);
+  const q = () => { const b = db('products').where({ cat_id: req.params.id }); if (d.sub) b.andWhere({ sub: d.sub }); return b; };
+  let skipped = 0;
+  if (d.mode === 'buy') skipped = Number((await q().whereNull('price').count({ n: '*' }).first()).n);
+  const n = await (d.mode === 'buy' ? q().whereNotNull('price') : q()).update({ quote_only: d.mode !== 'buy', show_price: d.mode === 'quote_price', updated_at: sqlNow() });
+  res.json({ updated: n, skipped });
+});
 r.delete('/categories/:id', requireAdmin, async (req, res) => {
   const used = await db('products').where({ cat_id: req.params.id }).first();
   if (used) throw new HttpError(409, 'Move or delete the products in this category first.');
@@ -463,10 +482,11 @@ r.delete('/newsletter/:email', async (req, res) => { await db('newsletter').wher
 r.put('/stock-alerts/:id', async (req, res) => { await db('stock_alerts').where({ id: req.params.id }).update({ notified: true }); res.json({ ok: true }); });
 
 /* ---------- products: spreadsheet export and bulk price/stock update ---------- */
-const PCOLS = ['id', 'name', 'brand', 'model', 'cat_id', 'sub', 'price', 'mrp', 'stock', 'active', 'warranty'];
+const PCOLS = ['id', 'name', 'brand', 'model', 'cat_id', 'sub', 'mode', 'price', 'mrp', 'stock', 'active', 'warranty'];
+const modeOf = (x) => (!x.quote_only ? 'buy' : x.show_price ? 'quote_price' : 'quote');
 r.get('/products.csv', async (req, res) => {
-  const rows = await db('products').orderBy('sort').select(PCOLS);
-  res.type('text/csv').attachment('technotri-products.csv').send(csv(rows.map((x) => ({ ...x, active: x.active ? 1 : 0 })), PCOLS));
+  const rows = await db('products').orderBy('sort').select(PCOLS.filter((c) => c !== 'mode').concat(['quote_only', 'show_price']));
+  res.type('text/csv').attachment('technotri-products.csv').send(csv(rows.map((x) => ({ ...x, mode: modeOf(x), active: x.active ? 1 : 0 })), PCOLS));
 });
 function parseCsv(text) {
   const rows = []; let row = [], cell = '', q = false;
@@ -488,14 +508,18 @@ r.post('/products/import', express.text({ type: ['text/csv', 'text/plain'], limi
   if (!head.includes('id')) throw new HttpError(400, 'The first row must contain an "id" column.');
   const col = (r0, k) => { const i = head.indexOf(k); return i < 0 ? undefined : (r0[i] ?? '').trim(); };
   const num = (v) => (v === undefined ? undefined : v === '' ? null : Number(String(v).replace(/[^0-9.]/g, '')));
-  let updated = 0; const missing = [];
+  let updated = 0; const missing = [], skipped = [];
   await db.transaction(async (trx) => {
     for (const r0 of rows.slice(1)) {
       const id = col(r0, 'id'); if (!id) continue;
       const upd = {};
       for (const k of ['name', 'brand', 'model', 'sub', 'warranty']) { const v = col(r0, k); if (v !== undefined && v !== '') upd[k] = v; }
       const cat = col(r0, 'cat_id'); if (cat) upd.cat_id = cat;
-      const price = num(col(r0, 'price')); if (price !== undefined) { upd.price = price; upd.quote_only = price === null; }
+      const price = num(col(r0, 'price')); if (price !== undefined) upd.price = price;
+      const mode = (col(r0, 'mode') || '').toLowerCase().replace(/[\s-]+/g, '_');
+      if (['buy', 'quote', 'quote_price'].includes(mode)) { upd.quote_only = mode !== 'buy'; upd.show_price = mode === 'quote_price'; }
+      else if (price === null) upd.quote_only = true;
+      if (upd.quote_only === false && (upd.price === null || (upd.price === undefined && (await trx('products').where({ id }).first('price') || {}).price == null))) { skipped.push(id); continue; }
       const mrp = num(col(r0, 'mrp')); if (mrp !== undefined) upd.mrp = mrp;
       const stock = num(col(r0, 'stock')); if (stock !== undefined && stock !== null) upd.stock = Math.max(0, Math.round(stock));
       const act = col(r0, 'active'); if (act !== undefined && act !== '') upd.active = /^(1|yes|true|y)$/i.test(act);
@@ -505,7 +529,7 @@ r.post('/products/import', express.text({ type: ['text/csv', 'text/plain'], limi
       if (n) updated++; else missing.push(id);
     }
   });
-  res.json({ updated, missing });
+  res.json({ updated, missing, skipped });
 });
 
 module.exports = r;

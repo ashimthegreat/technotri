@@ -5,7 +5,9 @@ const { db, fromJson } = require('./db');
 function toPublic(row, rating, images) {
   return {
     id: row.id, cat: row.cat_id, sub: row.sub, brand: row.brand, model: row.model, name: row.name, art: row.art,
-    price: row.price, mrp: row.mrp, quote: !!row.quote_only, stock: row.stock,
+    // "Get quote" products only expose a price when staff chose to show it as a guide.
+    price: row.quote_only && !row.show_price ? null : row.price, mrp: row.quote_only && !row.show_price ? null : row.mrp,
+    quote: !!row.quote_only, refPrice: !!(row.quote_only && row.show_price && row.price != null), stock: row.stock,
     tags: fromJson(row.tags, []), hl: fromJson(row.highlights, []), specs: fromJson(row.specs, {}),
     bld: fromJson(row.builder, null), lab: fromJson(row.lab, null),
     serv: row.serviceability == null ? null : Number(row.serviceability), warranty: row.warranty,

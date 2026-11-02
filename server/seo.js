@@ -87,7 +87,7 @@ function livePrice(row, s) {
 }
 const productLink = (p, s) => {
   const { price } = livePrice(p, s);
-  return `<li><a href="/p-${esc(p.id)}">${esc(p.name)}</a> — ${price == null ? 'price on quote' : npr(price)}${p.stock > 0 || price == null ? '' : ' (out of stock)'}</li>`;
+  return `<li><a href="/p-${esc(p.id)}">${esc(p.name)}</a> — ${price == null ? (p.show_price && p.price ? `guide price ${npr(p.price)}, get a quote` : 'price on quote') : npr(price)}${p.stock > 0 || price == null ? '' : ' (out of stock)'}</li>`;
 };
 
 /* ---------- page builders: each returns { title, description, body, ld[], image, type, status, robots } ---------- */
@@ -185,7 +185,7 @@ PAGES.p = async (s, id) => {
       reviewRating: { '@type': 'Rating', ratingValue: r.stars, bestRating: 5, worstRating: 1 }
     })) : undefined
   };
-  const priceText = quote ? 'price on quote' : npr(price);
+  const priceText = quote ? (row.show_price && row.price ? `Guide price ${npr(row.price)} · final price by quotation` : 'Price on quote') : npr(price);
   return {
     title: `${short(name)} Price in Nepal | Technotri`,
     description: fit([`${quote ? 'Get a quote for' : 'Buy'} ${short(name, 80)} in Nepal${quote ? '' : ` at ${npr(price)}`}.`, hl[0] && hl[0].replace(/\.?$/, '.'), 'VAT invoice, Nepal warranty, delivery across Nepal.', quote ? 'Installation available.' : 'Cash on delivery.']),

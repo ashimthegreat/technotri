@@ -115,6 +115,7 @@ function badgesOf(p){
   return b.join('');
 }
 function priceLine(p,big){
+  if(p.quote&&p.refPrice) return `<div class="price-line"><span class="small muted">Guide price</span> <span class="now price">${npr(p.price)}</span><span class="small muted">· final price by quote</span></div>`;
   if(p.quote||p.price==null) return `<div class="price-line"><span class="now price" style="font-size:${big?'22px':'15px'}">Price on quote</span></div>`;
   const u=unitPrice(p),w=wasPrice(p);
   return `<div class="price-line"><span class="now price">${npr(u)}</span>${w?`<s>${npr(w)}</s><span class="off">−${offPct(p)}%</span>`:''}${isDealer()?'<span class="badge dealer">Dealer</span>':''}</div>`;
@@ -136,7 +137,7 @@ function card(p){
     <div class="foot">${priceLine(p)}
       ${p.quote?'':`<span class="eta">${p.stock>0?`Get it by <b>${etaDate(z.days)}</b>`:'Out of stock'}</span>`}
       <div class="between"><label class="cmp"><input type="checkbox" data-c="cmp" data-id="${p.id}" ${c?'checked':''}> Compare</label>
-      ${p.quote?`<button class="btn sm ghost" data-a="quote" data-id="${p.id}">Add to quote</button>`:p.stock>0?`<button class="btn sm buy" data-a="add" data-id="${p.id}">Add to cart</button>`:`<button class="btn sm ghost" data-a="notify" data-id="${p.id}">Notify me</button>`}</div>
+      ${p.quote?`<button class="btn sm ghost" data-a="quote" data-id="${p.id}">Get quote</button>`:p.stock>0?`<button class="btn sm buy" data-a="add" data-id="${p.id}">Add to cart</button>`:`<button class="btn sm ghost" data-a="notify" data-id="${p.id}">Notify me</button>`}</div>
     </div></article>`;
 }
 function rowCard(p){
@@ -145,7 +146,7 @@ function rowCard(p){
    <div style="min-width:0;display:grid;gap:4px"><span class="brand muted small mono">${esc(p.brand)} · ${esc(p.model||'')}</span><a href="#p-${p.id}" style="color:var(--ink);font-weight:600;font-size:16px">${esc(p.name)}</a><div class="row">${ratingLine(p)}${labBadge(p)}${badgesOf(p)}</div>
    <ul>${(p.hl||[]).slice(0,3).map(h=>`<li>${esc(h)}</li>`).join('')}</ul></div>
    <div class="side">${priceLine(p,true)}${stockLine(p)}${p.quote||p.stock<=0?'':`<span class="eta">Get it by <b>${etaDate(z.days)}</b></span>`}
-    ${p.quote?`<button class="btn ghost" data-a="quote" data-id="${p.id}">Add to quote</button>`:p.stock>0?`<button class="btn buy" data-a="add" data-id="${p.id}">Add to cart</button>`:`<button class="btn ghost" data-a="notify" data-id="${p.id}">Notify me</button>`}
+    ${p.quote?`<button class="btn ghost" data-a="quote" data-id="${p.id}">Get quote</button>`:p.stock>0?`<button class="btn buy" data-a="add" data-id="${p.id}">Add to cart</button>`:`<button class="btn ghost" data-a="notify" data-id="${p.id}">Notify me</button>`}
     <label class="cmp small muted"><input type="checkbox" data-c="cmp" data-id="${p.id}" ${db.compare.includes(p.id)?'checked':''}> Compare</label></div></article>`;
 }
 
