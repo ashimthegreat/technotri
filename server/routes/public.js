@@ -24,14 +24,19 @@ async function userExtras(u) {
 
 /* ---------- catalog bootstrap ---------- */
 r.get('/bootstrap', async (req, res) => {
-  const [categories, products, zones, coupons, deals, company, protection, user] = await Promise.all([
+  const [categories, products, zones, coupons, deals, company, protection, user, guides, kits, faq, slides, site] = await Promise.all([
     catalog.categories(), catalog.listProducts(), db('zones').orderBy('sort'),
     db('coupons').where({ active: true }).andWhere((q) => q.whereNull('expires_at').orWhere('expires_at', '>', sqlNow())),
-    catalog.activeDeals(), catalog.setting('company', {}), catalog.setting('protection', []), userExtras(req.user)
+    catalog.activeDeals(), catalog.setting('company', {}), catalog.setting('protection', []), userExtras(req.user),
+    catalog.setting('guides', []), catalog.setting('kits', []), catalog.setting('faq', []), catalog.setting('slides', []), catalog.setting('site', {})
   ]);
   res.set('Cache-Control', 'no-store');
+  const live = (list) => list.filter((x) => x.active !== false);
   res.json({
     company, categories, products, deals, protection, user,
+    guides: live(guides), kits: live(kits), faq: live(faq), slides: live(slides),
+    site: { announcement: site.announcement || '', newsletterTitle: site.newsletterTitle || '', newsletterText: site.newsletterText || '', returnDays: site.returnDays || '7',
+      bank: site.bankAccountNo ? { name: site.bankName, accountName: site.bankAccountName, accountNo: site.bankAccountNo, branch: site.bankBranch } : null },
     zones: zones.map((z) => ({ id: z.id, name: z.name, fee: z.fee, days: z.days, free: z.free_over })),
     coupons: coupons.map((c) => ({ code: c.code, desc: c.description, type: c.type, v: Number(c.value), cap: c.cap, min: c.min_subtotal, cat: c.cat_id, first: !!c.first_order_only }))
   });
@@ -200,7 +205,7 @@ r.post('/orders', formLimiter, async (req, res) => {
 async function orderView(no) {
   const o = await db('orders').where({ order_no: no }).first();
   if (!o) return null;
-  const [items, events] = await Promise.all([db('order_items').where({ order_id: o.id }), db('order_events').where({ order_id: o.id }).orderBy('id')]);
+  const [items, events] = await Promise.all([db('order_items').where({ order_id: o.id }), db('order_events').where({ order_id: o.id, kind: 'status' }).orderBy('id')]);
   return {
     no: o.order_no, t: Date.parse(o.created_at.replace(' ', 'T') + 'Z'), status: o.status, eta: o.eta, zone: o.zone_name,
     info: { name: o.name, phone: o.phone, email: o.email, pan: o.pan, method: o.method, city: o.city, ward: o.ward, street: o.street, slot: o.slot, install: !!o.install, notes: o.notes, pay: o.pay_method },

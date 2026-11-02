@@ -17,6 +17,8 @@ const { dailyDeals } = require('../seeds/01_catalog');
 
 const r = express.Router();
 r.use(requireStaff);
+// Any change made in the admin refreshes the cached data used for search-engine pages.
+r.use((req, res, next) => { if (req.method !== 'GET') res.on('finish', () => require('../seo').invalidate()); next(); });
 
 const STATUSES = ['placed', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'];
 const csvCell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
@@ -58,7 +60,7 @@ const productSchema = z.object({
   tags: z.array(z.string().max(20)).max(10).optional(), hl: z.array(z.string().max(300)).max(12).optional(),
   specs: z.record(z.string(), z.string().max(300)).optional(), warranty: z.string().max(120).optional().or(z.literal('')),
   breaks: z.array(z.tuple([z.number().int().min(1), z.number().int().min(0)])).max(10).nullable().optional(),
-  fbt: z.array(z.string()).max(8).optional(), active: z.boolean().optional()
+  fbt: z.array(z.string()).max(8).optional(), active: z.boolean().optional(), sort: z.coerce.number().int().optional()
 });
 function productRow(d) {
   const row = {};
@@ -79,6 +81,7 @@ function productRow(d) {
   if (d.breaks !== undefined) row.breaks = toJson(d.breaks);
   if (d.fbt !== undefined) row.fbt = toJson(d.fbt);
   if (d.active !== undefined) row.active = d.active;
+  if (d.sort !== undefined) row.sort = d.sort;
   return row;
 }
 const slugify = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
@@ -153,7 +156,9 @@ r.get('/orders.csv', async (req, res) => {
   res.type('text/csv').attachment('technotri-orders.csv').send(csv(rows, ['order_no', 'created_at', 'name', 'phone', 'email', 'pan', 'method', 'zone_name', 'city', 'street', 'status', 'pay_method', 'pay_status', 'items_total', 'discount', 'shipping', 'total', 'vat']));
 });
 r.put('/orders/:no', async (req, res) => {
-  const d = check(z.object({ status: z.enum(STATUSES).optional(), payStatus: z.string().max(40).optional(), note: z.string().max(255).optional() }), req.body);
+  const d = check(z.object({ status: z.enum(STATUSES).optional(), payStatus: z.string().max(40).optional(), note: z.string().max(255).optional(),
+    name: z.string().trim().min(2).max(120).optional(), phone: z.string().trim().max(20).optional(), email: z.string().trim().max(190).optional(), pan: z.string().trim().max(20).optional(),
+    city: z.string().trim().max(120).optional(), ward: z.string().trim().max(120).optional(), street: z.string().trim().max(255).optional(), notes: z.string().max(1000).optional() }), req.body);
   const o = await db('orders').where({ order_no: req.params.no }).first();
   if (!o) throw new HttpError(404, 'Order not found.');
   await db.transaction(async (trx) => {
@@ -168,7 +173,9 @@ r.put('/orders/:no', async (req, res) => {
       if (o.status === 'cancelled' && d.status !== 'cancelled') throw new HttpError(409, 'A cancelled order cannot be reopened. Ask the customer to order again.');
       await trx('order_events').insert({ order_id: o.id, status: d.status, note: d.note || null, by_user: req.user.id });
     }
+    if (d.note && !(d.status && d.status !== o.status)) await trx('order_events').insert({ order_id: o.id, status: o.status, note: d.note, by_user: req.user.id, kind: 'note' });
     if (d.payStatus) upd.pay_status = d.payStatus;
+    for (const k of ['name', 'phone', 'email', 'pan', 'city', 'ward', 'street', 'notes']) if (d[k] !== undefined) upd[k] = d[k] || null;
     if (Object.keys(upd).length) await trx('orders').where({ id: o.id }).update(upd);
   });
   const view = await orderView(o.order_no);
@@ -294,10 +301,12 @@ r.put('/zones/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-r.get('/settings', async (req, res) => res.json({ company: await catalog.setting('company', {}), protection: await catalog.setting('protection', []) }));
+r.get('/settings', async (req, res) => res.json({ company: await catalog.setting('company', {}), protection: await catalog.setting('protection', []), flash: await catalog.setting('flash_rotation', null) }));
 r.put('/settings', requireAdmin, async (req, res) => {
-  const d = check(z.object({ company: z.record(z.string(), z.string().max(500)).optional(), protection: z.array(z.object({ id: z.string(), name: z.string(), pct: z.number().min(0).max(1) })).optional() }), req.body);
+  const d = check(z.object({ company: z.record(z.string(), z.string().max(500)).optional(), protection: z.array(z.object({ id: z.string().min(1).max(20), name: z.string().trim().min(3).max(120), pct: z.number().min(0).max(1) })).max(6).optional(),
+    flash_rotation: z.array(z.tuple([z.string(), z.number().int().min(1).max(90)])).max(60).optional() }), req.body);
   for (const [key, value] of Object.entries(d)) await db('settings').insert({ key, value: toJson(value) }).onConflict('key').merge();
+  require('../seo').invalidate();
   res.json({ ok: true });
 });
 
@@ -308,5 +317,195 @@ r.get('/newsletter.csv', async (req, res) => {
 r.get('/stock-alerts', async (req, res) => res.json({ alerts: await db('stock_alerts').join('products', 'products.id', 'stock_alerts.product_id').where({ notified: false }).select('stock_alerts.*', 'products.name', 'products.stock') }));
 
 r.get('/me', (req, res) => res.json({ user: publicUser(req.user) }));
+
+/* ---------- order detail for staff (includes internal notes) ---------- */
+r.get('/orders/:no/detail', async (req, res) => {
+  const o = await db('orders').where({ order_no: req.params.no }).first();
+  if (!o) throw new HttpError(404, 'Order not found.');
+  const [view, events, customer] = await Promise.all([
+    orderView(o.order_no),
+    db('order_events').leftJoin('users', 'users.id', 'order_events.by_user').where({ order_id: o.id }).orderBy('order_events.id').select('order_events.*', 'users.name as by_name'),
+    o.user_id ? db('users').where({ id: o.user_id }).first('id', 'name', 'phone', 'email', 'dealer_status') : null
+  ]);
+  res.json({ order: view, events, customer, raw: { notes: o.notes, install: !!o.install, slot: o.slot, pay_status: o.pay_status } });
+});
+
+/* ---------- categories ---------- */
+const catSchema = z.object({
+  id: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{2,40}$/, 'Use 2–40 lowercase letters, digits or hyphens for the web address.').optional(),
+  name: z.string().trim().min(2).max(120), blurb: z.string().trim().max(255).optional().or(z.literal('')),
+  subs: z.array(z.string().trim().min(1).max(120)).max(40), pillar: z.enum(['energy', 'power', 'net', 'isp', 'parts']).optional(),
+  art: z.string().max(40).optional().or(z.literal('')), dealer_pct: z.coerce.number().min(0).max(0.6), sort: z.coerce.number().int().optional()
+});
+const catRow = (d) => ({ name: d.name, blurb: d.blurb || null, subs: toJson(d.subs), pillar: d.pillar || null, art: d.art || null, dealer_pct: d.dealer_pct, ...(d.sort !== undefined ? { sort: d.sort } : {}) });
+r.get('/categories', async (req, res) => {
+  const [rows, counts] = await Promise.all([db('categories').orderBy('sort'), db('products').select('cat_id').count({ n: '*' }).groupBy('cat_id')]);
+  const n = new Map(counts.map((c) => [c.cat_id, Number(c.n)]));
+  res.json({ categories: rows.map((c) => ({ ...c, subs: fromJson(c.subs, []), facets: fromJson(c.facets, null), dealer_pct: Number(c.dealer_pct), products: n.get(c.id) || 0 })) });
+});
+r.post('/categories', requireAdmin, async (req, res) => {
+  const d = check(catSchema, req.body);
+  if (!d.id) throw new HttpError(400, 'Enter the web address (id) for the new category.');
+  if (await db('categories').where({ id: d.id }).first()) throw new HttpError(409, 'A category with this address already exists.');
+  const max = await db('categories').max({ m: 'sort' }).first();
+  await db('categories').insert({ id: d.id, ...catRow(d), sort: d.sort ?? (max.m || 0) + 1 });
+  res.status(201).json({ ok: true });
+});
+r.put('/categories/:id', requireAdmin, async (req, res) => {
+  const d = check(catSchema, req.body);
+  const n = await db('categories').where({ id: req.params.id }).update(catRow(d));
+  if (!n) throw new HttpError(404, 'Category not found.');
+  res.json({ ok: true });
+});
+r.delete('/categories/:id', requireAdmin, async (req, res) => {
+  const used = await db('products').where({ cat_id: req.params.id }).first();
+  if (used) throw new HttpError(409, 'Move or delete the products in this category first.');
+  await db('categories').where({ id: req.params.id }).del();
+  res.json({ ok: true });
+});
+
+/* ---------- editable content: guides, kits, FAQ, home slides, site text ---------- */
+const id40 = z.string().trim().toLowerCase().regex(/^[a-z0-9-]{2,60}$/, 'Use lowercase letters, digits and hyphens for the web address.');
+const CONTENT = {
+  guides: z.array(z.object({
+    id: id40, title: z.string().trim().min(3).max(160), tag: z.string().trim().max(60), art: z.string().max(40).optional(), kind: z.string().trim().max(40),
+    mins: z.coerce.number().int().min(1).max(240), level: z.string().trim().max(40), intro: z.string().trim().max(600),
+    tools: z.array(z.string().max(200)).optional(), products: z.array(z.string()).max(20),
+    sections: z.array(z.object({ h: z.string().max(200), p: z.array(z.string().max(4000)).optional(), table: z.array(z.array(z.string().max(300))).optional() })).optional(),
+    steps: z.array(z.object({ t: z.string().max(200), p: z.string().max(4000), tip: z.string().max(1000).optional(), warn: z.string().max(1000).optional() })).optional(),
+    active: z.boolean().optional()
+  })).max(500),
+  kits: z.array(z.object({
+    id: id40, name: z.string().trim().min(2).max(160), for: z.string().trim().max(300).optional(), items: z.array(z.string()).min(1).max(200),
+    note: z.string().max(600).optional(), extra: z.array(z.string().max(200)).optional(), active: z.boolean().optional()
+  })).max(200),
+  faq: z.array(z.object({ q: z.string().trim().min(3).max(300), a: z.string().trim().min(1).max(3000), active: z.boolean().optional() })).max(200),
+  slides: z.array(z.object({
+    kicker: z.string().max(80), title: z.string().trim().min(3).max(160), text: z.string().max(400), art: z.string().max(40),
+    pillar: z.enum(['energy', 'power', 'net', 'isp', 'parts']), cta: z.tuple([z.string().max(60), z.string().max(120)]), cta2: z.tuple([z.string().max(60), z.string().max(120)]).optional(),
+    active: z.boolean().optional()
+  })).max(12),
+  site: z.object({
+    announcement: z.string().max(160), newsletterTitle: z.string().max(120), newsletterText: z.string().max(240),
+    bankName: z.string().max(120), bankAccountName: z.string().max(160), bankAccountNo: z.string().max(60), bankBranch: z.string().max(120),
+    returnDays: z.string().max(4), homeTitle: z.string().max(120), homeDescription: z.string().max(300)
+  }).partial()
+};
+r.get('/content/:key', async (req, res) => {
+  if (!CONTENT[req.params.key]) throw new HttpError(404, 'Unknown content.');
+  res.json({ value: await catalog.setting(req.params.key, req.params.key === 'site' ? {} : []) });
+});
+r.put('/content/:key', async (req, res) => {
+  const schema = CONTENT[req.params.key];
+  if (!schema) throw new HttpError(404, 'Unknown content.');
+  let value = check(schema, req.body.value);
+  if (req.params.key === 'site') value = { ...(await catalog.setting('site', {})), ...value };
+  if (Array.isArray(value) && value.length && value[0].id) {
+    const ids = value.map((x) => x.id);
+    const dup = ids.find((x, i) => ids.indexOf(x) !== i);
+    if (dup) throw new HttpError(400, `Two entries use the same web address: ${dup}.`);
+  }
+  await db('settings').insert({ key: req.params.key, value: toJson(value) }).onConflict('key').merge();
+  require('../seo').invalidate();
+  res.json({ value });
+});
+
+/* ---------- coupons (edit / switch on and off), zones (add / remove) ---------- */
+r.put('/coupons/:code', async (req, res) => {
+  const d = check(couponSchema.partial().omit({ code: true }), req.body);
+  if (d.expires_at !== undefined) d.expires_at = d.expires_at ? new Date(d.expires_at).toISOString().slice(0, 19).replace('T', ' ') : null;
+  const n = await db('coupons').where({ code: req.params.code }).update(d);
+  if (!n) throw new HttpError(404, 'Coupon not found.');
+  res.json({ ok: true });
+});
+r.post('/zones', requireAdmin, async (req, res) => {
+  const d = check(z.object({ id: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{2,20}$/, 'Use 2–20 lowercase letters or digits for the zone code.'), name: z.string().trim().min(2).max(160), fee: z.coerce.number().int().min(0), days: z.coerce.number().int().min(0).max(30), free_over: z.coerce.number().int().min(0) }), req.body);
+  if (await db('zones').where({ id: d.id }).first()) throw new HttpError(409, 'A zone with this code already exists.');
+  const max = await db('zones').max({ m: 'sort' }).first();
+  await db('zones').insert({ ...d, sort: (max.m || 0) + 1 });
+  res.status(201).json({ ok: true });
+});
+r.delete('/zones/:id', requireAdmin, async (req, res) => {
+  if ((await db('zones').count({ n: '*' }).first()).n <= 1) throw new HttpError(409, 'Keep at least one delivery zone.');
+  await db('zones').where({ id: req.params.id }).del();
+  res.json({ ok: true });
+});
+
+/* ---------- customers: detail and password reset ---------- */
+r.get('/customers/:id', async (req, res) => {
+  const u = await db('users').where({ id: req.params.id }).first('id', 'name', 'phone', 'email', 'pan', 'role', 'dealer_status', 'active', 'created_at', 'last_login_at');
+  if (!u) throw new HttpError(404, 'Customer not found.');
+  const [orders, addresses, dealer] = await Promise.all([
+    db('orders').where({ user_id: u.id }).orderBy('id', 'desc').select('order_no', 'total', 'status', 'created_at'),
+    db('addresses').where({ user_id: u.id }), db('dealer_applications').where({ user_id: u.id }).orderBy('id', 'desc').first()
+  ]);
+  res.json({ customer: u, orders, addresses, dealer });
+});
+r.put('/customers/:id/password', requireAdmin, async (req, res) => {
+  const d = check(z.object({ password: z.string().min(8, 'Use at least 8 characters.').max(200) }), req.body);
+  const n = await db('users').where({ id: req.params.id }).update({ password_hash: await bcrypt.hash(d.password, 10) });
+  if (!n) throw new HttpError(404, 'Customer not found.');
+  res.json({ ok: true });
+});
+r.put('/customers/:id/dealer', async (req, res) => {
+  const d = check(z.object({ status: z.enum(['none', 'approved', 'rejected']) }), req.body);
+  await db('users').where({ id: req.params.id }).update({ dealer_status: d.status });
+  res.json({ ok: true });
+});
+
+/* ---------- moderation: delete ---------- */
+r.delete('/reviews/:id', async (req, res) => { await db('reviews').where({ id: req.params.id }).del(); res.json({ ok: true }); });
+r.delete('/questions/:id', async (req, res) => { await db('questions').where({ id: req.params.id }).del(); res.json({ ok: true }); });
+
+/* ---------- marketing lists ---------- */
+r.get('/newsletter', async (req, res) => res.json({ subscribers: await db('newsletter').orderBy('created_at', 'desc').limit(5000) }));
+r.delete('/newsletter/:email', async (req, res) => { await db('newsletter').where({ email: req.params.email }).del(); res.json({ ok: true }); });
+r.put('/stock-alerts/:id', async (req, res) => { await db('stock_alerts').where({ id: req.params.id }).update({ notified: true }); res.json({ ok: true }); });
+
+/* ---------- products: spreadsheet export and bulk price/stock update ---------- */
+const PCOLS = ['id', 'name', 'brand', 'model', 'cat_id', 'sub', 'price', 'mrp', 'stock', 'active', 'warranty'];
+r.get('/products.csv', async (req, res) => {
+  const rows = await db('products').orderBy('sort').select(PCOLS);
+  res.type('text/csv').attachment('technotri-products.csv').send(csv(rows.map((x) => ({ ...x, active: x.active ? 1 : 0 })), PCOLS));
+});
+function parseCsv(text) {
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (ch === '"') q = false; else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter((r0) => r0.some((c) => c.trim() !== ''));
+}
+r.post('/products/import', express.text({ type: ['text/csv', 'text/plain'], limit: '2mb' }), async (req, res) => {
+  const rows = parseCsv(String(req.body || '').replace(/^\uFEFF/, ''));
+  if (rows.length < 2) throw new HttpError(400, 'The file is empty. Export the product list first, edit it, then import it.');
+  const head = rows[0].map((h) => h.trim().toLowerCase());
+  if (!head.includes('id')) throw new HttpError(400, 'The first row must contain an "id" column.');
+  const col = (r0, k) => { const i = head.indexOf(k); return i < 0 ? undefined : (r0[i] ?? '').trim(); };
+  const num = (v) => (v === undefined ? undefined : v === '' ? null : Number(String(v).replace(/[^0-9.]/g, '')));
+  let updated = 0; const missing = [];
+  await db.transaction(async (trx) => {
+    for (const r0 of rows.slice(1)) {
+      const id = col(r0, 'id'); if (!id) continue;
+      const upd = {};
+      for (const k of ['name', 'brand', 'model', 'sub', 'warranty']) { const v = col(r0, k); if (v !== undefined && v !== '') upd[k] = v; }
+      const cat = col(r0, 'cat_id'); if (cat) upd.cat_id = cat;
+      const price = num(col(r0, 'price')); if (price !== undefined) { upd.price = price; upd.quote_only = price === null; }
+      const mrp = num(col(r0, 'mrp')); if (mrp !== undefined) upd.mrp = mrp;
+      const stock = num(col(r0, 'stock')); if (stock !== undefined && stock !== null) upd.stock = Math.max(0, Math.round(stock));
+      const act = col(r0, 'active'); if (act !== undefined && act !== '') upd.active = /^(1|yes|true|y)$/i.test(act);
+      if (!Object.keys(upd).length) continue;
+      upd.updated_at = sqlNow();
+      const n = await trx('products').where({ id }).update(upd);
+      if (n) updated++; else missing.push(id);
+    }
+  });
+  res.json({ updated, missing });
+});
 
 module.exports = r;

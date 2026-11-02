@@ -12,7 +12,6 @@
  */
 const fs = require('fs');
 const path = require('path');
-const vm = require('vm');
 const crypto = require('crypto');
 const config = require('./config');
 const { db, fromJson } = require('./db');
@@ -42,17 +41,6 @@ function page() {
   return template;
 }
 
-/* ---------- editorial content shared with the browser (guides, kits, FAQ) ---------- */
-let content = null;
-function siteContent() {
-  if (content && config.isProd) return content;
-  try {
-    const sandbox = { window: {} };
-    vm.runInNewContext(fs.readFileSync(path.join(PUBLIC, 'content.js'), 'utf8'), sandbox);
-    content = sandbox.window.TT_CONTENT;
-  } catch { content = { GUIDES: [], KITS: [], FAQ: [] }; }
-  return content;
-}
 const artImage = (kind) => (kind && fs.existsSync(path.join(PUBLIC, 'img', 'art', kind + '.png')) ? `/img/art/${kind}.png` : null);
 const ogImage = (kind) => (kind && fs.existsSync(path.join(PUBLIC, 'img', 'og', kind + '.png')) ? `/img/og/${kind}.png` : '/img/og-default.png');
 
@@ -60,11 +48,13 @@ const ogImage = (kind) => (kind && fs.existsSync(path.join(PUBLIC, 'img', 'og', 
 let shared = null, sharedAt = 0;
 async function store() {
   if (shared && Date.now() - sharedAt < 60e3) return shared;
-  const [company, cats, zones, deals] = await Promise.all([
-    catalog.setting('company', {}), db('categories').orderBy('sort'), db('zones').orderBy('sort'), catalog.activeDeals()
+  const [company, cats, zones, deals, guides, kits, faq, site] = await Promise.all([
+    catalog.setting('company', {}), db('categories').orderBy('sort'), db('zones').orderBy('sort'), catalog.activeDeals(),
+    catalog.setting('guides', []), catalog.setting('kits', []), catalog.setting('faq', []), catalog.setting('site', {})
   ]);
   cats.forEach((c) => { c.subs = fromJson(c.subs, []); });
-  shared = { company, cats, zones, deals: new Map(deals.map(([id, pct, ends]) => [id, { pct, ends }])) };
+  const live = (l) => l.filter((x) => x.active !== false);
+  shared = { company, cats, zones, site, content: { GUIDES: live(guides), KITS: live(kits), FAQ: live(faq) }, deals: new Map(deals.map(([id, pct, ends]) => [id, { pct, ends }])) };
   sharedAt = Date.now();
   return shared;
 }
@@ -106,10 +96,10 @@ const PAGES = {};
 PAGES.home = async (s) => {
   const top = await db('products').where({ active: true }).orderBy('sort').limit(400);
   const dealRows = top.filter((p) => s.deals.has(p.id)).slice(0, 12);
-  const { GUIDES } = siteContent();
+  const { GUIDES } = s.content;
   return {
-    title: 'Technotri Store – Solar, Inverter, UPS, Battery & Wi-Fi Price in Nepal',
-    description: 'Buy solar panels, inverters, UPS, lithium batteries, Wi-Fi routers, ONTs and fibre supplies online in Nepal. VAT invoice, Nepal warranty, delivery nationwide.',
+    title: s.site.homeTitle || 'Technotri Store – Solar, Inverter, UPS, Battery & Wi-Fi Price in Nepal',
+    description: s.site.homeDescription || 'Buy solar panels, inverters, UPS, lithium batteries, Wi-Fi routers, ONTs and fibre supplies online in Nepal. VAT invoice, Nepal warranty, delivery nationwide.',
     body: `<h1>Solar, backup power and connectivity equipment in Nepal</h1>
       <p>Technotri Store sells solar energy, backup power and network equipment to homes, businesses, installers and internet service providers across Nepal, with a VAT invoice, Nepal warranty, installation and cash on delivery.</p>
       ${s.cats.map((c) => `<section><h2><a href="/c-${c.id}">${esc(c.name)}</a></h2><p>${esc(c.blurb || '')}</p><ul>${top.filter((p) => p.cat_id === c.id).slice(0, 8).map((p) => productLink(p, s)).join('')}</ul></section>`).join('')}
@@ -180,7 +170,7 @@ PAGES.p = async (s, id) => {
     } : undefined,
     hasMerchantReturnPolicy: {
       '@type': 'MerchantReturnPolicy', applicableCountry: 'NP', returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
-      merchantReturnDays: 7, returnMethod: 'https://schema.org/ReturnInStore', returnFees: 'https://schema.org/FreeReturn'
+      merchantReturnDays: Number(s.site.returnDays) || 7, returnMethod: 'https://schema.org/ReturnInStore', returnFees: 'https://schema.org/FreeReturn'
     }
   };
   const productLd = {
@@ -215,7 +205,7 @@ PAGES.p = async (s, id) => {
 };
 
 PAGES.g = async (s, id) => {
-  const { GUIDES } = siteContent();
+  const { GUIDES } = s.content;
   const g = GUIDES.find((x) => x.id === id);
   if (!g) return null;
   const prods = (g.products || []).length ? await db('products').whereIn('id', g.products).where({ active: true }) : [];
@@ -241,8 +231,8 @@ PAGES.g = async (s, id) => {
   };
 };
 
-PAGES.guides = async () => {
-  const { GUIDES } = siteContent();
+PAGES.guides = async (s) => {
+  const { GUIDES } = s.content;
   return {
     title: 'Buying Guides – Solar, Inverter, UPS, Battery & Wi-Fi | Technotri',
     description: 'Plain-language guides for Nepal: choosing a UPS or inverter, sizing home backup, lithium vs lead-acid batteries, setting up mesh Wi-Fi and fibre connectors.',
@@ -262,7 +252,7 @@ PAGES.deals = async (s) => {
 };
 
 PAGES.kits = async (s) => {
-  const { KITS } = siteContent();
+  const { KITS } = s.content;
   return {
     title: 'Ready Solar & Backup Kits for Homes and ISPs in Nepal | Technotri',
     description: 'Matched kits of inverter, batteries, panels and network gear, ready to install. Add a whole kit to your cart or ask for a quote.',
@@ -272,13 +262,13 @@ PAGES.kits = async (s) => {
 };
 
 PAGES.support = async (s) => {
-  const { FAQ = [] } = siteContent();
+  const { FAQ } = s.content;
   return {
     title: 'Help, Delivery, Returns & Warranty | Technotri Store',
     description: 'Delivery times across Nepal, returns, VAT invoices, warranty claims and installation. Call +977 9820150965 or email info@technotri.com.np.',
-    body: `${crumbHtml([['Home', '/'], ['Help & support']])}<h1>Help and support</h1>${FAQ.map(([q, a]) => `<h2>${esc(q)}</h2><p>${esc(a)}</p>`).join('')}
+    body: `${crumbHtml([['Home', '/'], ['Help & support']])}<h1>Help and support</h1>${FAQ.map(({ q, a }) => `<h2>${esc(q)}</h2><p>${esc(a)}</p>`).join('')}
       <h2>Contact</h2><p>${esc(s.company.name)}, ${esc(s.company.address)}. Phone ${esc(s.company.phone)}. Email ${esc(s.company.email)}. ${esc(s.company.hours)}.</p>`,
-    ld: [crumbLd([['Home', '/'], ['Help & support', '/support']]), { '@type': 'FAQPage', mainEntity: FAQ.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) }]
+    ld: [crumbLd([['Home', '/'], ['Help & support', '/support']]), { '@type': 'FAQPage', mainEntity: FAQ.map(({ q, a }) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) }]
   };
 };
 
@@ -349,6 +339,12 @@ async function render(routePath) {
     .replace(/<title>[^<]*<\/title>/, '')
     .replace('<!--SEO-->', tags)
     .replace('<!--APP-->', m.body ? `<div class="ssr">${m.body}</div>` : '')
+    .replace(/(id="annText"[^>]*>)[^<]*/, `$1${esc(s.site.announcement || '')}`)
+    .replace(/(id="utilPhone"[^>]*>)[^<]*/, `$1${esc(s.company.phone || '')}`)
+    .replace(/(id="newsTitle"[^>]*>)[^<]*/, `$1${esc(s.site.newsletterTitle || '')}`)
+    .replace(/(id="newsText"[^>]*>)[^<]*/, `$1${esc(s.site.newsletterText || '')}`)
+    .replace(/(<span id="footCo"[^>]*>)[\s\S]*?<\/span><\/span><\/div>/, `$1<b style="color:var(--foot-ink);font-size:14px">${esc(s.company.name)}</b><span>${esc(s.company.address)}</span><span class="mono">${esc(s.company.phone)}</span><span>${esc(s.company.email)}</span><span class="mono" style="font-size:12px">PAN ${esc(s.company.pan)} · Reg. ${esc(s.company.reg)}</span></span></div>`)
+    .replace(/(<ul id="footCats">)[\s\S]*?<\/ul>/, `$1${s.cats.map((c) => `<li><a href="/c-${c.id}">${esc(c.name)}</a></li>`).join('')}</ul>`)
     .replace('<span id="navCats" style="display:contents"></span>', `<span id="navCats" style="display:contents">${s.cats.map((c) => `<a href="/c-${c.id}">${esc(c.name)}</a>`).join('')}</span>`);
   return { status, html };
 }
@@ -370,7 +366,7 @@ async function sitemap() {
     ...s.cats.map((c) => ({ u: '/c-' + c.id, pr: '0.9', cf: 'daily', lm: latest(products.filter((p) => p.cat_id === c.id)) })),
     ...products.map((p) => ({ u: '/p-' + p.id, pr: '0.8', cf: 'weekly', lm: day(p.updated_at), img: (iMap.get(p.id) || [artImage(p.art)].filter(Boolean)).map((x) => ({ loc: abs(x), title: p.name })) })),
     { u: '/guides', pr: '0.6', cf: 'monthly' },
-    ...siteContent().GUIDES.map((g) => ({ u: '/g-' + g.id, pr: '0.6', cf: 'monthly' })),
+    ...s.content.GUIDES.map((g) => ({ u: '/g-' + g.id, pr: '0.6', cf: 'monthly' })),
     ...['/kits', '/builder', '/quote', '/dealer', '/support', '/about', '/lab'].map((u) => ({ u, pr: '0.5', cf: 'monthly' }))
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>

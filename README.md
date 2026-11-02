@@ -15,12 +15,19 @@ One Node.js app serves both the storefront and the API, with a MySQL database be
 - Dealer/installer application. Approved dealers see category discounts.
 - B2B quote requests, a System Builder for sizing solar and backup, ready kits, guides, reviews and Q&A, and warranty/service requests.
 
-**Staff admin** (`/admin`, needs a staff or admin login)
-- Dashboard: revenue chart, pending work, low stock.
-- Products: inline price, stock and visibility edits; full product editor; photo upload.
-- Orders: status workflow, marking bank transfers as paid, CSV export.
-- Quotes, service requests, dealer approvals, review moderation, answering questions.
-- Deals scheduler, coupons, delivery zones, company/invoice details, customer roles and staff logins.
+**Staff admin** (`/admin`, needs a staff or admin login). Everything customers see is managed here, with no code changes:
+- **Overview:** revenue chart, work waiting (new orders, quotes, dealer applications, questions), low stock.
+- **Orders:** list, filters and CSV export. Each order has its own page: items, status changes with a customer-visible note, internal notes, payment status (mark bank transfers paid), editing the delivery address and contact, and a full timeline.
+- **Products:** inline price, stock and visibility edits; full editor (specs, highlights, tags, quantity prices, frequently-bought-together, illustration, list position); photo upload. Bulk price and stock updates by downloading the list as CSV, editing it in Excel or Google Sheets, and uploading it.
+- **Categories:** add, rename, reorder and delete; sub-categories; colour; dealer discount per category.
+- **Deals and coupons:** schedule deals, auto-fill 30 days, create, edit, switch off or expire coupons.
+- **Website content:** home-page banners, guides (with a simple text editor), ready kits, help FAQ, announcement bar, newsletter text, bank transfer details, return window, and the home page's Google title and description.
+- **Customers and staff:** customer pages with orders, addresses and dealer status; password reset; roles; disabling accounts; new staff logins.
+- **Dealers, quotes and service requests, reviews and Q&A** (answer, hide or delete).
+- **Subscribers and alerts:** newsletter list (CSV) and back-in-stock requests.
+- **Delivery and settings:** delivery zones (add, edit, remove), company details used on invoices, extended warranty plans, daily-deal rotation.
+
+Staff can do day-to-day work. Only admins can change categories, company details, warranty plans and the deal rotation, add or remove delivery zones, and change roles and passwords.
 
 **Server** (`server/`)
 - Express 5, knex + mysql2, migrations and seed data.
@@ -58,7 +65,7 @@ To add another staff login later, run `npm run create-admin -- email@example.com
 ```
 app.js                 entry point (cPanel "Application startup file")
 server/                Express app, routes, pricing, auth, SEO, migrations, seeds
-server/data/           catalogue seed data
+server/data/           catalogue seed data and default website content
 public/                storefront + admin (static files served by the app)
 public/uploads/        product photos uploaded from the admin (not in git)
 scripts/               create-admin

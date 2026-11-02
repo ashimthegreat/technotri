@@ -2,8 +2,8 @@
    Catalog, accounts, orders and admin data come from the server (/api). The cart, compare list,
    recently viewed and quote list are kept in the browser until checkout. */
 (function(){
-const art=window.TTArt, CONTENT=window.TT_CONTENT||{GUIDES:[],KITS:[]};
-const D={GUIDES:CONTENT.GUIDES,KITS:CONTENT.KITS,CATS:[],ZONES:[],COUPONS:[],PROTECT:[],COMPANY:{}};
+const art=window.TTArt;
+const D={GUIDES:[],KITS:[],FAQ:[],SLIDES:[],SITE:{},CATS:[],ZONES:[],COUPONS:[],PROTECT:[],COMPANY:{}};
 const KEY='technotri-local-v1';
 
 /* ---------------- API ---------------- */
@@ -260,6 +260,11 @@ function buildHeader(){
   document.getElementById('mega').innerHTML=`<div class="wrap">${D.CATS.map(c=>`<div style="${c.pillar?`--pc:var(--${c.pillar})`:''}"><h4><span class="pill-tag"></span><a href="#c-${c.id}">${esc(c.name)}</a></h4><ul>${c.subs.map(s=>`<li><a href="#c-${c.id}" data-a="gosub" data-cat="${c.id}" data-sub="${esc(s)}">${esc(s)}</a></li>`).join('')}</ul></div>`).join('')}</div>`;
   document.getElementById('searchCat').innerHTML=`<option value="">All</option>`+D.CATS.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
   document.getElementById('zoneSel').innerHTML=D.ZONES.map(z=>`<option value="${z.id}">${esc(z.name)}</option>`).join('');
+  const set=(id,h)=>{const el=document.getElementById(id);if(el)el.innerHTML=h};const C0=D.COMPANY;
+  set('annText',esc(D.SITE.announcement||''));set('utilPhone',esc(C0.phone||''));
+  set('newsTitle',esc(D.SITE.newsletterTitle||'Deals and new stock every Friday'));set('newsText',esc(D.SITE.newsletterText||''));
+  set('footCo',`<b style="color:var(--foot-ink);font-size:14px">${esc(C0.name||'')}</b><span>${esc(C0.address||'')}</span><span class="mono">${esc(C0.phone||'')}</span><span>${esc(C0.email||'')}</span><span class="mono" style="font-size:12px">PAN ${esc(C0.pan||'')} · Reg. ${esc(C0.reg||'')}</span>`);
+  set('footCats',D.CATS.map(c=>`<li><a href="#c-${c.id}">${esc(c.name)}</a></li>`).join(''));
   document.getElementById('navCats').innerHTML=D.CATS.map(c=>`<a href="#c-${c.id}" style="${c.pillar?`--pc:var(--${c.pillar})`:''}"><span class="pd"></span>${esc(c.name)}</a>`).join('');
   fixLinks(document);
 }
@@ -397,6 +402,7 @@ F.news=async f=>{const v=f.email.value.trim();if(!/^\S+@\S+\.\S+$/.test(v)){toas
 /* ---------------- boot ---------------- */
 function applyBootstrap(b){
   D.CATS=b.categories;D.ZONES=b.zones;D.COUPONS=b.coupons;D.PROTECT=b.protection;D.COMPANY=b.company||{};
+  D.GUIDES=b.guides||[];D.KITS=b.kits||[];D.FAQ=b.faq||[];D.SLIDES=b.slides||[];D.SITE=b.site||{};
   db.products=b.products;byId=new Map(b.products.map(p=>[p.id,p]));db.deals=b.deals||[];
   setUser(b.user);
   if(!D.ZONES.find(z=>z.id===db.zone)&&D.ZONES[0]) db.zone=D.ZONES[0].id;

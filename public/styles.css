@@ -545,3 +545,10 @@ nav.strip a .pd{display:inline-block;width:7px;height:7px;border-radius:50%;marg
 .ssr table{border-collapse:collapse;width:100%;font-size:14px}
 .ssr th,.ssr td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
 .ssr blockquote{margin:0;padding-left:14px;border-left:3px solid var(--line)}
+.home-top>*{min-width:0}
+.dotd .between{flex-wrap:wrap;gap:6px}
+.dotd{grid-template-columns:minmax(0,1fr)}
+.dotd>*{min-width:0}
+.dotd .pic img{max-width:100%;height:auto}
+/* uploaded product photos: always fit their frame */
+.pic img,.gallery img{max-width:100%;max-height:100%;object-fit:contain}

@@ -15,8 +15,8 @@
 </head>
 <body>
 <div class="util"><div class="wrap">
-  <div class="group"><span>Deliver to <select id="zoneSel" data-c="zone" aria-label="Delivery area"></select></span><span class="hide-sm">Order before 4 PM for next-day delivery in the Valley</span></div>
-  <div class="group"><a href="#track">Track order</a><a href="#support">Help</a><a href="#dealer" class="hide-sm">Dealer pricing</a><span class="mono hide-sm">+977 9820150965</span></div>
+  <div class="group"><span>Deliver to <select id="zoneSel" data-c="zone" aria-label="Delivery area"></select></span><span class="hide-sm" id="annText">Order before 4 PM for next-day delivery in the Valley</span></div>
+  <div class="group"><a href="#track">Track order</a><a href="#support">Help</a><a href="#dealer" class="hide-sm">Dealer pricing</a><span class="mono hide-sm" id="utilPhone">+977 9820150965</span></div>
 </div></div>
 
 <header class="site">
@@ -43,11 +43,11 @@
 <main class="wrap"><div id="app" class="view" aria-live="polite"><!--APP--></div></main>
 
 <footer class="site">
-  <div class="news"><div class="wrap"><div><b style="color:var(--foot-ink);font-size:16px">Deals and new stock every Friday</b><p>One email a week. Unsubscribe any time.</p></div>
+  <div class="news"><div class="wrap"><div><b style="color:var(--foot-ink);font-size:16px" id="newsTitle">Deals and new stock every Friday</b><p id="newsText">One email a week. Unsubscribe any time.</p></div>
     <form data-f="news"><label class="sr" for="newsEmail">Email address</label><input type="email" name="email" id="newsEmail" placeholder="you@example.com" required><button class="btn buy">Subscribe</button></form></div></div>
   <div class="wrap cols">
-    <div class="stack" style="gap:8px"><a class="logo" href="#home" aria-label="Technotri home" style="margin-bottom:6px"><img src="/logo-white.webp" alt="Technotri Pvt. Ltd." width="137" height="48"></a><b style="color:var(--foot-ink);font-size:14px">Technotri Pvt. Ltd.</b><span>Ward 16, Kumaristhan, Kathmandu, Nepal</span><span class="mono">+977 9820150965</span><span>info@technotri.com.np</span><span class="mono" style="font-size:12px">PAN 610507830 · Reg. 313205/79/080</span></div>
-    <div><h4>Shop</h4><ul><li><a href="#c-solar">Solar Energy</a></li><li><a href="#c-backup">Backup Power</a></li><li><a href="#c-connect">Connectivity</a></li><li><a href="#c-ftth">ISP & FTTH</a></li><li><a href="#c-parts">Parts & Accessories</a></li></ul></div>
+    <div class="stack" style="gap:8px"><a class="logo" href="#home" aria-label="Technotri home" style="margin-bottom:6px"><img src="/logo-white.webp" alt="Technotri Pvt. Ltd." width="137" height="48"></a><span id="footCo" style="display:contents"><b style="color:var(--foot-ink);font-size:14px">Technotri Pvt. Ltd.</b><span>Ward 16, Kumaristhan, Kathmandu, Nepal</span><span class="mono">+977 9820150965</span><span>info@technotri.com.np</span><span class="mono" style="font-size:12px">PAN 610507830 · Reg. 313205/79/080</span></span></div>
+    <div><h4>Shop</h4><ul id="footCats"><li><a href="#c-solar">Solar Energy</a></li><li><a href="#c-backup">Backup Power</a></li><li><a href="#c-connect">Connectivity</a></li><li><a href="#c-ftth">ISP & FTTH</a></li><li><a href="#c-parts">Parts & Accessories</a></li></ul></div>
     <div><h4>Tools</h4><ul><li><a href="#builder">System Builder</a></li><li><a href="#compare">Compare products</a></li><li><a href="#kits">Ready kits</a></li><li><a href="#guides">Guides</a></li><li><a href="#lab">Technotri Lab</a></li></ul></div>
     <div><h4>Business</h4><ul><li><a href="#dealer">Dealer pricing</a></li><li><a href="#quote">Request a quote</a></li><li><a href="#quote">Projects and installation</a></li><li><a href="#admin">Staff admin</a></li></ul></div>
     <div><h4>Help</h4><ul><li><a href="#track">Track order</a></li><li><a href="#support">Delivery and returns</a></li><li><a href="#support">Warranty claims</a></li><li><a href="#about">About Technotri</a></li></ul></div>
@@ -57,7 +57,6 @@
 
 <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
 
-<script src="/content.js" defer></script>
 <script src="/art.js" defer></script>
 <script src="/core.js" defer></script>
 <script src="/views.js" defer></script>

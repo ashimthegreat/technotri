@@ -1,5 +1,6 @@
-/* Technotri Store — editorial content shipped with the site (guides, ready kits). Catalog data comes from the API. */
-window.TT_CONTENT={
+'use strict';
+/* Default editable content, loaded into the database on first run. Staff edit it in Admin → Content. */
+module.exports = {
  "GUIDES": [
   {
    "id": "ups-vs-inverter",
@@ -421,12 +422,90 @@ window.TT_CONTENT={
     "Dealer price after account approval"
    ]
   }
- ]
+ ],
+ "FAQ": [
+  {
+   "q": "How long does delivery take?",
+   "a": "Kathmandu Valley: next working day for orders before 4 PM. Pokhara, Chitwan, Butwal, Biratnagar and Birgunj: about 3 working days. Other districts: about 5. We do not deliver on Saturdays."
+  },
+  {
+   "q": "Do you give a VAT invoice?",
+   "a": "Yes. Every order gets an electronic VAT invoice, including cash on delivery. Add your business PAN at checkout to have it printed on the invoice."
+  },
+  {
+   "q": "Can I return a product?",
+   "a": "Unused products in sealed packaging can be returned within 7 days of delivery. Batteries that have been filled with acid, cut cable and opened fibre connectors cannot be returned."
+  },
+  {
+   "q": "How do warranty claims work?",
+   "a": "Submit the form below with your order number and the product serial number. We inspect at our service desk in Kumaristhan; for batteries and inverters we can collect from you inside the Valley."
+  },
+  {
+   "q": "Do you install?",
+   "a": "Yes. Inverters, solar systems, networks and CCTV across Kathmandu Valley, and solar projects nationwide. Tick installation at checkout or request a quote."
+  },
+  {
+   "q": "When do I get my refund?",
+   "a": "Within 7 days of approving the return, by bank transfer or cash at our store."
+  }
+ ],
+ "SLIDES": [
+  {
+   "pillar": "power",
+   "kicker": "Load shedding ready",
+   "title": "Keep your Wi-Fi on when the power goes.",
+   "text": "DC mini UPS for router and ONT. No reboot, 4–10 hours of internet.",
+   "cta": [
+    "Shop router UPS",
+    "p-mu-10"
+   ],
+   "cta2": [
+    "How to install",
+    "g-mini-ups-install"
+   ],
+   "art": "ups"
+  },
+  {
+   "pillar": "energy",
+   "kicker": "Solar + battery",
+   "title": "Run your home on sunshine, keep the night covered.",
+   "text": "Hybrid inverters, Mono PERC panels and LiFePO4 batteries, checked for compatibility in the System Builder.",
+   "cta": [
+    "Open System Builder",
+    "builder"
+   ],
+   "cta2": [
+    "Shop solar",
+    "c-solar"
+   ],
+   "art": "hybrid"
+  },
+  {
+   "pillar": "net",
+   "kicker": "For ISPs and installers",
+   "title": "ONTs, drop cable and connectors at dealer prices.",
+   "text": "Carton pricing, quantity breaks and credit for approved ISP and installer accounts.",
+   "cta": [
+    "Apply for a dealer account",
+    "dealer"
+   ],
+   "cta2": [
+    "Shop ISP & FTTH",
+    "c-ftth"
+   ],
+   "art": "ont"
+  }
+ ],
+ "SITE": {
+  "announcement": "Order before 4 PM for next-day delivery in the Valley",
+  "newsletterTitle": "Deals and new stock every Friday",
+  "newsletterText": "One email a week. Unsubscribe any time.",
+  "bankName": "",
+  "bankAccountName": "Technotri Pvt. Ltd.",
+  "bankAccountNo": "",
+  "bankBranch": "",
+  "returnDays": "7",
+  "homeTitle": "",
+  "homeDescription": ""
+ }
 };
-/* Help-page questions. Also used by the server for FAQ structured data. */
-window.TT_CONTENT.FAQ=[['How long does delivery take?','Kathmandu Valley: next working day for orders before 4 PM. Pokhara, Chitwan, Butwal, Biratnagar and Birgunj: about 3 working days. Other districts: about 5. We do not deliver on Saturdays.'],
- ['Do you give a VAT invoice?','Yes. Every order gets an electronic VAT invoice, including cash on delivery. Add your business PAN at checkout to have it printed on the invoice.'],
- ['Can I return a product?','Unused products in sealed packaging can be returned within 7 days of delivery. Batteries that have been filled with acid, cut cable and opened fibre connectors cannot be returned.'],
- ['How do warranty claims work?','Submit the form below with your order number and the product serial number. We inspect at our service desk in Kumaristhan; for batteries and inverters we can collect from you inside the Valley.'],
- ['Do you install?','Yes. Inverters, solar systems, networks and CCTV across Kathmandu Valley, and solar projects nationwide. Tick installation at checkout or request a quote.'],
- ['When do I get my refund?','Within 7 days of approving the return, by bank transfer or cash at our store.']];

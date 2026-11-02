@@ -24,22 +24,19 @@ setInterval(tick,1000);
 
 const pv=c=>c&&c.pillar?`--pc:var(--${c.pillar});--pcs:var(--${c.pillar}-soft)`:'';
 /* ================= HOME ================= */
-const SLIDES=[
- {pl:'power',k:'Load shedding ready',h:'Keep your Wi-Fi on when the power goes.',p:'DC mini UPS for router and ONT. No reboot, 4–10 hours of internet.',cta:['Shop router UPS','p-mu-10'],cta2:['How to install','g-mini-ups-install'],art:'ups'},
- {pl:'energy',k:'Solar + battery',h:'Run your home on sunshine, keep the night covered.',p:'Hybrid inverters, Mono PERC panels and LiFePO4 batteries, checked for compatibility in the System Builder.',cta:['Open System Builder','builder'],cta2:['Shop solar','c-solar'],art:'hybrid'},
- {pl:'net',k:'For ISPs and installers',h:'ONTs, drop cable and connectors at dealer prices.',p:'Carton pricing, quantity breaks and credit for approved ISP and installer accounts.',cta:['Apply for a dealer account','dealer'],cta2:['Shop ISP & FTTH','c-ftth'],art:'ont'}
-];
+const slides=()=>D.SLIDES.map(x=>({pl:x.pillar,k:x.kicker,h:x.title,p:x.text,cta:x.cta,cta2:x.cta2,art:x.art}));
 let heroTimer=null, heroI=0, heroPaused=false;
 function heroSlide(i){
-  const s=SLIDES[i];
-  return `<div class="slide" aria-roledescription="slide" aria-label="${i+1} of ${SLIDES.length}"><div class="copy"><span class="kicker">${esc(s.k)}</span><h1>${esc(s.h)}</h1><p>${esc(s.p)}</p><div class="row"><a class="btn buy lg" href="#${s.cta[1]}">${esc(s.cta[0])}</a><a class="btn ghost lg" href="#${s.cta2[1]}">${esc(s.cta2[0])}</a></div></div><div class="pic">${art(s.art)}</div></div>`;
+  const s=slides()[i%Math.max(1,slides().length)];
+  if(!s) return `<div class="slide"><div class="copy"><span class="kicker">${esc(D.COMPANY.store||'Technotri')}</span><h1>Solar, backup power and connectivity for Nepal.</h1><div class="row"><a class="btn buy lg" href="#deals">See today's deals</a></div></div></div>`;
+  return `<div class="slide" aria-roledescription="slide" aria-label="${i+1} of ${slides().length}"><div class="copy"><span class="kicker">${esc(s.k)}</span><h1>${esc(s.h)}</h1><p>${esc(s.p)}</p><div class="row"><a class="btn buy lg" href="#${s.cta[1]}">${esc(s.cta[0])}</a>${s.cta2&&s.cta2[0]?`<a class="btn ghost lg" href="#${s.cta2[1]}">${esc(s.cta2[0])}</a>`:''}</div></div><div class="pic">${art(s.art)}</div></div>`;
 }
 function startHero(){
   clearInterval(heroTimer);
   if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  heroTimer=setInterval(()=>{const el=document.getElementById('heroInner');if(!el){clearInterval(heroTimer);return}if(heroPaused)return;heroI=(heroI+1)%SLIDES.length;showHero(heroI)},6500);
+  heroTimer=setInterval(()=>{const el=document.getElementById('heroInner');if(!el){clearInterval(heroTimer);return}if(heroPaused)return;heroI=(heroI+1)%Math.max(1,slides().length);showHero(heroI)},6500);
 }
-function showHero(i){heroI=i;const el=document.getElementById('heroInner');if(!el)return;el.innerHTML=heroSlide(i);el.parentElement.style.setProperty('--pc',`var(--${SLIDES[i].pl})`);document.querySelectorAll('.hero .dots button').forEach((b,j)=>b.setAttribute('aria-current',j===i))}
+function showHero(i){heroI=i;const el=document.getElementById('heroInner');if(!el)return;el.innerHTML=heroSlide(i);el.parentElement.style.setProperty('--pc',`var(--${(slides()[i]||{pl:'energy'}).pl})`);document.querySelectorAll('.hero .dots button').forEach((b,j)=>b.setAttribute('aria-current',j===i))}
 A.hero=el=>{showHero(+el.dataset.i)};
 A.heroPause=el=>{heroPaused=!heroPaused;el.textContent=heroPaused?'Play':'Pause'};
 
@@ -54,7 +51,7 @@ Views.home=()=>{
   <section class="home-top">
     <div class="hero" aria-roledescription="carousel" aria-label="Featured">
       <div id="heroInner">${heroSlide(heroI)}</div>
-      <div class="dots">${SLIDES.map((_,i)=>`<button data-a="hero" data-i="${i}" aria-label="Show slide ${i+1}" aria-current="${i===heroI}"></button>`).join('')}</div>
+      <div class="dots">${slides().map((_,i)=>`<button data-a="hero" data-i="${i}" aria-label="Show slide ${i+1}" aria-current="${i===heroI}"></button>`).join('')}</div>
       <button class="pause" data-a="heroPause">${heroPaused?'Play':'Pause'}</button>
     </div>
     <aside class="dotd" aria-label="Deal of the day">
@@ -575,9 +572,9 @@ function orderDetail(o){
       <tr><td colspan="3">Taxable amount</td><td class="r">${npr(o.taxable)}</td></tr><tr><td colspan="3">VAT 13%</td><td class="r">${npr(o.vat)}</td></tr>
       <tr><td colspan="3"><b>Grand total</b></td><td class="r"><b>${npr(o.total)}</b></td></tr></tbody></table></div>
      <p class="small muted" style="margin-top:8px">Payment: ${esc(PAY.find(p=>p[0]===o.info.pay)?.[1]||o.info.pay)} · ${esc(o.pay.status)}. Prices include VAT.</p></section>
-  </div><aside class="panel stack"><h3>Need help?</h3><p class="small">Call <b class="mono">${esc(D.COMPANY.phone)}</b> or email <b>${esc(D.COMPANY.email)}</b> with your order number.</p>
+  </div><aside class="stack">${o.info.pay==='bank'&&!/paid/.test(o.pay.status)&&D.SITE.bank?`<section class="panel stack" style="border-color:var(--accent)"><h3>Pay by bank transfer</h3><p class="small">Transfer <b>${npr(o.total)}</b> and use <b class="mono">${o.no}</b> as the remarks. We dispatch once it clears.</p><p class="small mono">${esc(D.SITE.bank.name||'')}${D.SITE.bank.branch?', '+esc(D.SITE.bank.branch):''}<br>${esc(D.SITE.bank.accountName||'')}<br>A/C ${esc(D.SITE.bank.accountNo)}</p><button class="btn sm ghost" data-a="copy" data-t="${esc(D.SITE.bank.accountNo)}">Copy account number</button></section>`:''}<section class="panel stack"><h3>Need help?</h3><p class="small">Call <b class="mono">${esc(D.COMPANY.phone)}</b> or email <b>${esc(D.COMPANY.email)}</b> with your order number.</p>
     ${['placed','confirmed'].includes(o.status)?`<button class="btn ghost" data-a="cancelOrder" data-no="${o.no}" data-phone="${esc(o.info.phone)}">Cancel order</button>`:''}
-    <a class="btn ghost" href="#support">Warranty and returns</a><a class="btn" href="#home">Continue shopping</a></aside></div>`;
+    <a class="btn ghost" href="#support">Warranty and returns</a><a class="btn" href="#home">Continue shopping</a></section></aside></div>`;
 }
 function orderPage(o){
   const fresh=justPlaced===o.no;justPlaced=null;
@@ -820,10 +817,10 @@ Views.lab=()=>`${crumbs([['Technotri Lab']])}<div class="guide"><article class="
   <aside class="stack"><h3>Highest scores</h3>${[...db().products].filter(p=>p.lab).sort((a,b)=>b.lab.score-a.lab.score).slice(0,5).map(p=>`<a class="panel tight row" style="flex-wrap:nowrap;color:var(--ink)" href="#p-${p.id}">${labBadge(p)}<span class="small">${esc(p.name)}</span></a>`).join('')}</aside></div>`;
 
 /* ================= SUPPORT ================= */
-const FAQ=(window.TT_CONTENT&&window.TT_CONTENT.FAQ)||[];
+
 Views.support=()=>`${crumbs([['Help & support']])}<h1>Help and support</h1>
   <div class="two"><div class="stack">
-   <section class="panel faq"><h3>Frequently asked questions</h3>${FAQ.map(([q,a])=>`<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</section>
+   <section class="panel faq"><h3>Frequently asked questions</h3>${D.FAQ.map(({q,a})=>`<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</section>
    <form class="panel stack" data-f="claim" id="warranty"><h3>Warranty or service request</h3><div class="form-grid">
     <label class="field"><span>Order number</span><input type="text" name="no" id="wcNo" placeholder="TT…"></label><label class="field"><span>Product serial number</span><input type="text" name="serial" id="wcSerial" required></label>
     <label class="field"><span>Name</span><input type="text" name="name" id="wcName" value="${esc(db().user?.name||'')}" required></label><label class="field"><span>Mobile</span><input type="tel" name="phone" id="wcPhone" value="${esc(db().user?.phone||'')}" required></label>
