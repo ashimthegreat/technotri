@@ -286,7 +286,7 @@ PAGES.dealer = simple('Dealer & Installer Pricing – Wholesale Solar, UPS, FTTH
 PAGES.lab = simple('Technotri Lab – Tested Backup Runtime & Wi-Fi Range | Technotri', 'Our own runtime, efficiency and coverage measurements for the backup and Wi-Fi products we sell in Nepal.', 'Technotri Lab', 'We test the products we recommend: backup runtime under real loads, inverter efficiency and Wi-Fi coverage.');
 
 /* Pages that exist in the app but must not be indexed. */
-const PRIVATE = /^(cart|checkout|signin|account|my-orders|wishlist|addresses|track|compare|order-.+|admin(-.+)?)$/;
+const PRIVATE = /^(cart|checkout|signin|forgot|reset-.+|account|my-orders|wishlist|addresses|track|compare|order-.+|admin(-.+)?)$/;
 
 async function render(routePath) {
   const p = decodeURIComponent(routePath.replace(/^\//, '')) || 'home';
@@ -423,6 +423,8 @@ Disallow: /addresses
 Disallow: /wishlist
 Disallow: /order-
 Disallow: /signin
+Disallow: /forgot
+Disallow: /reset-
 
 Sitemap: ${SITE}/sitemap.xml
 `;

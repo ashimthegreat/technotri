@@ -38,6 +38,10 @@ const config = {
     notify: env('ORDER_NOTIFY_EMAIL', '')
   },
   seo: { google: env('GOOGLE_SITE_VERIFICATION', ''), bing: env('BING_SITE_VERIFICATION', ''), ga4: env('GA4_ID', '') },
+  oauth: {
+    google: { id: env('GOOGLE_CLIENT_ID', ''), secret: env('GOOGLE_CLIENT_SECRET', '') },
+    facebook: { id: env('FACEBOOK_APP_ID', ''), secret: env('FACEBOOK_APP_SECRET', '') }
+  },
   admin: { email: env('ADMIN_EMAIL', ''), password: env('ADMIN_PASSWORD', ''), name: env('ADMIN_NAME', 'Store Admin') }
 };
 

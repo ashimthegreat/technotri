@@ -55,7 +55,7 @@ In the same screen, add these under **Environment variables**. They are the same
 To make a random secret, run this in cPanel **Terminal**:
 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 
-Optional email settings use your cPanel mailbox: `SMTP_HOST` (mail.technotri.com.np), `SMTP_PORT` (465), `SMTP_SECURE` (true), `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`, and `ORDER_NOTIFY_EMAIL` (where new-order alerts go).
+Email settings (strongly recommended: they power account confirmation, "Forgot password" and order emails) use your cPanel mailbox: `SMTP_HOST` (mail.technotri.com.np), `SMTP_PORT` (465), `SMTP_SECURE` (true), `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`, and `ORDER_NOTIFY_EMAIL` (where new-order alerts go).
 
 Instead of the form, you can create a `.env` file in the app root with the same keys. It is ignored by git.
 
@@ -81,7 +81,25 @@ If your host has no Terminal, skip this step. The app creates the tables itself 
 Click **Restart** in **Setup Node.js App**, then open https://technotri.com.np.
 
 - Health check: `https://technotri.com.np/api/health` should return `{"ok":true}`.
-- Staff admin: sign in at `/signin` with the admin email and password, then go to `/admin`.
+- Staff admin: sign in at `/signin` with `ADMIN_EMAIL` and `ADMIN_PASSWORD`, then go to `/admin`. Admin and staff accounts always sign in with email and password; Google and Facebook are for customers only.
+- Forgot the admin password? Change `ADMIN_PASSWORD` in Setup Node.js App and click Restart. On every start the app makes sure that account exists, is an admin, and uses that password.
+
+## 6b. Sign in with Google and Facebook (optional)
+
+Customers can create an account with their email and a password, or with one tap through Google or Facebook. The buttons appear by themselves once the keys are set.
+
+**Google**
+1. Go to console.cloud.google.com, create a project (e.g. "Technotri Store"), then open **APIs & Services → OAuth consent screen**. Choose *External*, fill in the app name, support email and logo, and add `technotri.com.np` as an authorised domain. Publish the app.
+2. **Credentials → Create credentials → OAuth client ID → Web application.** Authorised redirect URI: `https://technotri.com.np/api/auth/google/callback`
+3. Copy the client ID and secret into `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+
+**Facebook**
+1. Go to developers.facebook.com → **My Apps → Create app**. Choose the "Authenticate and request data from users with Facebook Login" use case.
+2. Under **Facebook Login → Settings**, set the Valid OAuth Redirect URI to `https://technotri.com.np/api/auth/facebook/callback`.
+3. In **App settings → Basic**, add the privacy policy URL (`https://technotri.com.np/support`) and app domain, then switch the app to **Live**.
+4. Copy the App ID and App Secret into `FACEBOOK_APP_ID` and `FACEBOOK_APP_SECRET`.
+
+Restart the app. If a Google or Facebook email matches an existing account, the accounts are joined, so customers keep their orders.
 
 ## 7. HTTPS and final checks
 

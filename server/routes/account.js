@@ -4,7 +4,8 @@ const bcrypt = require('bcryptjs');
 const { z } = require('zod');
 const { db, toJson } = require('../db');
 const { requireUser } = require('../auth');
-const { check, HttpError } = require('../util');
+const { check, HttpError, PHONE, cleanPhone } = require('../util');
+const mailer = require('../mailer');
 const { orderView, userExtras } = require('./public');
 
 const r = express.Router();
@@ -15,20 +16,23 @@ r.get('/me', async (req, res) => res.json({ user: await userExtras(req.user) }))
 r.put('/me', async (req, res) => {
   const d = check(z.object({
     name: z.string().trim().min(2, 'Enter your name.').max(120),
-    email: z.string().trim().toLowerCase().email('Check the email address.').max(190).optional().or(z.literal('')),
+    email: z.string().trim().toLowerCase().email('Check the email address.').max(190),
+    phone: z.string().optional().transform((p) => (p ? cleanPhone(p) : '')).refine((p) => !p || PHONE.test(p), 'Enter a 10-digit mobile number starting with 96, 97 or 98, or leave it blank.'),
     pan: z.string().trim().max(20).optional().or(z.literal(''))
   }), req.body);
-  if (d.email) {
-    const other = await db('users').where({ email: d.email }).whereNot({ id: req.user.id }).first();
-    if (other) throw new HttpError(409, 'Another account already uses this email.');
-  }
-  await db('users').where({ id: req.user.id }).update({ name: d.name, email: d.email || null, pan: d.pan || null });
-  res.json({ user: await userExtras(await db('users').where({ id: req.user.id }).first()) });
+  if (await db('users').where({ email: d.email }).whereNot({ id: req.user.id }).first()) throw new HttpError(409, 'Another account already uses this email.');
+  if (d.phone && (await db('users').where({ phone: d.phone }).whereNot({ id: req.user.id }).first())) throw new HttpError(409, 'Another account already uses this mobile number.');
+  const changedEmail = d.email !== req.user.email;
+  await db('users').where({ id: req.user.id }).update({ name: d.name, email: d.email, phone: d.phone || null, pan: d.pan || null, ...(changedEmail && mailer.enabled ? { email_verified_at: null } : {}) });
+  const fresh = await db('users').where({ id: req.user.id }).first();
+  if (changedEmail) await require('./auth').sendVerification(fresh);
+  res.json({ user: await userExtras(fresh) });
 });
 
 r.put('/password', async (req, res) => {
-  const d = check(z.object({ current: z.string().min(1, 'Enter your current password.'), next: z.string().min(8, 'Use at least 8 characters for the new password.').max(100) }), req.body);
-  if (!(await bcrypt.compare(d.current, req.user.password_hash))) throw new HttpError(400, 'The current password is not correct.');
+  const d = check(z.object({ current: z.string().optional(), next: z.string().min(8, 'Use at least 8 characters for the new password.').max(100) }), req.body);
+  // Accounts made with Google/Facebook have no password yet and can set one directly.
+  if (req.user.password_hash && !(await bcrypt.compare(d.current || '', req.user.password_hash))) throw new HttpError(400, 'The current password is not correct.');
   await db('users').where({ id: req.user.id }).update({ password_hash: await bcrypt.hash(d.next, 10) });
   res.json({ ok: true });
 });
@@ -56,6 +60,7 @@ r.put('/wishlist', async (req, res) => {
 });
 
 r.post('/dealer', async (req, res) => {
+  if (mailer.enabled && !req.user.email_verified_at) throw new HttpError(403, 'Confirm your email address first. Use the link we emailed you, or resend it from your account page.');
   const d = check(z.object({
     business: z.string().trim().min(2, 'Enter the business name.').max(160),
     pan: z.string().trim().regex(/^\d{9}$/, 'PAN/VAT is 9 digits.'),

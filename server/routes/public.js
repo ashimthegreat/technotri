@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const config = require('../config');
 const { z } = require('zod');
 const rateLimit = require('express-rate-limit');
 const { db, toJson, fromJson } = require('../db');
@@ -34,6 +35,7 @@ r.get('/bootstrap', async (req, res) => {
   const live = (list) => list.filter((x) => x.active !== false);
   res.json({
     company, categories, products, deals, protection, user,
+    auth: { google: !!(config.oauth.google.id && config.oauth.google.secret), facebook: !!(config.oauth.facebook.id && config.oauth.facebook.secret), email: require('../mailer').enabled },
     guides: live(guides), kits: live(kits), faq: live(faq), slides: live(slides),
     site: { announcement: site.announcement || '', newsletterTitle: site.newsletterTitle || '', newsletterText: site.newsletterText || '', returnDays: site.returnDays || '7',
       bank: site.bankAccountNo ? { name: site.bankName, accountName: site.bankAccountName, accountNo: site.bankAccountNo, branch: site.bankBranch } : null },
@@ -206,7 +208,7 @@ async function orderView(no) {
   const o = await db('orders').where({ order_no: no }).first();
   if (!o) return null;
   const [items, events] = await Promise.all([db('order_items').where({ order_id: o.id }), db('order_events').where({ order_id: o.id, kind: 'status' }).orderBy('id')]);
-  return {
+  const view = {
     no: o.order_no, t: Date.parse(o.created_at.replace(' ', 'T') + 'Z'), status: o.status, eta: o.eta, zone: o.zone_name,
     info: { name: o.name, phone: o.phone, email: o.email, pan: o.pan, method: o.method, city: o.city, ward: o.ward, street: o.street, slot: o.slot, install: !!o.install, notes: o.notes, pay: o.pay_method },
     pay: { method: o.pay_method, status: o.pay_status },
@@ -214,11 +216,13 @@ async function orderView(no) {
     items_total: o.items_total, prot: o.protection, disc: o.discount, coupon: o.coupon, ship: o.shipping, total: o.total, taxable: Number(o.taxable), vat: Number(o.vat),
     history: events.map((e) => ({ s: e.status, t: Date.parse(e.created_at.replace(' ', 'T') + 'Z'), note: e.note }))
   };
+  Object.defineProperty(view, 'uid', { value: o.user_id, enumerable: false }); // kept out of the JSON sent to browsers
+  return view;
 }
 
 function canSee(req, o, phone) {
   if (!o) return false;
-  if (req.user && (req.user.role !== 'customer' || req.user.phone === o.info.phone)) return true;
+  if (req.user && (req.user.role !== 'customer' || (o.uid && o.uid === req.user.id) || (req.user.phone && req.user.phone === o.info.phone))) return true;
   return phone && cleanPhone(phone) === o.info.phone;
 }
 

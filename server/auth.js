@@ -39,7 +39,8 @@ function csrf(req, res, next) {
 
 function publicUser(u, extra = {}) {
   if (!u) return null;
-  return { id: u.id, name: u.name, phone: u.phone, email: u.email, pan: u.pan, role: u.role, dealer: u.dealer_status, wishlist: fromJson(u.wishlist, []), ...extra };
+  return { id: u.id, name: u.name, phone: u.phone, email: u.email, pan: u.pan, role: u.role, dealer: u.dealer_status, wishlist: fromJson(u.wishlist, []),
+    emailVerified: !!u.email_verified_at, hasPassword: !!u.password_hash, google: !!u.google_id, facebook: !!u.facebook_id, ...extra };
 }
 
 module.exports = { setSession, clearSession, loadUser, requireUser, requireStaff, requireAdmin, csrf, publicUser };

@@ -4,7 +4,12 @@ const nodemailer = require('nodemailer');
 const config = require('./config');
 
 let transport = null;
-if (config.smtp.host && config.smtp.user) {
+if (config.smtp.host === 'console') {
+  // Development only: SMTP_HOST=console "sends" emails by printing them (and their links) to the log.
+  transport = nodemailer.createTransport({ jsonTransport: true });
+  const sendMail = transport.sendMail.bind(transport);
+  transport.sendMail = async (m) => { const link = /href="([^"]+)"/.exec(m.html || ''); console.log(`[mail] ${m.subject} -> ${m.to}${link ? ' ' + link[1].replace(/&amp;/g, '&') : ''}`); return sendMail(m); };
+} else if (config.smtp.host && config.smtp.user) {
   transport = nodemailer.createTransport({ host: config.smtp.host, port: config.smtp.port, secure: config.smtp.secure, auth: { user: config.smtp.user, pass: config.smtp.pass } });
 }
 
@@ -13,7 +18,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 async function send(to, subject, html) {
   if (!to) return;
-  if (!transport) { if (!config.isProd) console.log(`[mail skipped] ${subject} -> ${to}`); return; }
+  if (!transport) { if (!config.isProd) console.log(`[mail skipped] ${subject} -> ${to}${/href="([^"]+)"/.test(html) ? ' ' + html.match(/href="([^"]+)"/)[1].replace(/&amp;/g, '&') : ''}`); return; }
   try { await transport.sendMail({ from: config.smtp.from, to, subject, html }); }
   catch (e) { console.error('Mail failed:', e.message); }
 }
@@ -30,7 +35,12 @@ function orderHtml(o, items) {
   <p>Technotri Pvt. Ltd. · +977 9820150965 · info@technotri.com.np</p></div>`;
 }
 
+const button = (href, label) => `<p><a href="${esc(href)}" style="display:inline-block;background:#D31220;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:bold">${esc(label)}</a></p><p style="font-size:12px;color:#5A6C7E">Or paste this link into your browser:<br>${esc(href)}</p>`;
+
 module.exports = {
+  enabled: !!transport,
+  verifyEmail: (u, link) => send(u.email, 'Confirm your email for Technotri Store', `<div style="font-family:Arial,sans-serif;color:#0F1E2E"><h2>Hello ${esc(u.name)}</h2><p>Confirm this email address to finish setting up your Technotri Store account.</p>${button(link, 'Confirm my email')}<p>The link works for 3 days. If you didn't create an account, ignore this email.</p></div>`),
+  resetPassword: (u, link) => send(u.email, 'Reset your Technotri Store password', `<div style="font-family:Arial,sans-serif;color:#0F1E2E"><h2>Hello ${esc(u.name)}</h2><p>Someone asked to reset the password for this account.</p>${button(link, 'Choose a new password')}<p>The link works for 2 hours and only once. If it wasn't you, ignore this email; your password stays the same.</p></div>`),
   orderPlaced: (o, items) => Promise.all([
     send(o.email, `Your Technotri order ${o.order_no}`, orderHtml(o, items)),
     send(config.smtp.notify, `New order ${o.order_no} · ${npr(o.total)}`, orderHtml(o, items))

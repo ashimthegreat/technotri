@@ -9,6 +9,9 @@ async function start() {
     const [, applied] = await db.migrate.latest();
     if (applied.length) console.log('Applied migrations:', applied.join(', '));
   }
+  // Make sure the admin login from ADMIN_EMAIL / ADMIN_PASSWORD exists and matches.
+  try { await require('./seeds/01_catalog').ensureAdmin(db); } catch (e) { console.error('Admin check failed:', e.message); }
+  if (config.isProd && config.admin.password && config.admin.password.length < 10) console.warn('ADMIN_PASSWORD is short. Use at least 10 characters.');
   const app = createApp();
   app.listen(config.port, () => console.log(`Technotri Store listening on ${config.port} (${config.isProd ? 'production' : 'development'})`));
 }

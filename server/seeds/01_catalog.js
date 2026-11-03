@@ -36,6 +36,7 @@ function dailyDeals(flash, days, productIds) {
 
 exports.loadCatalog = loadCatalog;
 exports.dailyDeals = dailyDeals;
+exports.ensureAdmin = (knex) => ensureAdmin(knex);
 
 exports.seed = async function (knex) {
   const force = process.env.SEED_FORCE === 'true';
@@ -102,7 +103,15 @@ async function ensureAdmin(knex) {
   const { email, password, name } = config.admin;
   if (!email || !password) return;
   const found = await knex('users').where({ email: email.toLowerCase() }).first();
-  if (found) return;
-  await knex('users').insert({ name, email: email.toLowerCase(), password_hash: await bcrypt.hash(password, 10), role: 'admin' });
-  console.log(`Created admin account ${email}.`);
+  if (!found) {
+    await knex('users').insert({ name, email: email.toLowerCase(), password_hash: await bcrypt.hash(password, 10), role: 'admin', email_verified_at: knex.fn.now() });
+    console.log(`Created admin account ${email}.`);
+    return;
+  }
+  // ADMIN_EMAIL / ADMIN_PASSWORD are the source of truth: changing them and restarting resets the admin login.
+  const upd = {};
+  if (found.role !== 'admin') upd.role = 'admin';
+  if (!found.active) upd.active = true;
+  if (!found.password_hash || !(await bcrypt.compare(password, found.password_hash))) upd.password_hash = await bcrypt.hash(password, 10);
+  if (Object.keys(upd).length) { await knex('users').where({ id: found.id }).update(upd); console.log(`Updated admin account ${email} (${Object.keys(upd).join(', ').replace('password_hash', 'password')}).`); }
 }

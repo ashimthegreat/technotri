@@ -11,7 +11,7 @@ One Node.js app serves both the storefront and the API, with a MySQL database be
 - Daily deals, quantity price breaks, coupons, and protection plans on items of Rs 5,000 or more.
 - Cart and checkout. Payment is **cash on delivery** or **bank transfer**. Customers choose a delivery zone or store pickup, and see an ETA in Nepal time.
 - Order confirmation with a VAT invoice (13% included). Order tracking by order number and phone. Cancellation while an order is still placed or confirmed.
-- Customer accounts: profile, saved addresses, order history, password change.
+- Customer accounts: sign up with email and password (mobile optional) or with Google or Facebook; email confirmation link; “Forgot password” by email; profile, saved addresses, order history, password change.
 - Dealer/installer application. Approved dealers see category discounts.
 - B2B quote requests, a System Builder for sizing solar and backup, ready kits, guides, reviews and Q&A, and warranty/service requests.
 
@@ -32,7 +32,7 @@ Staff can do day-to-day work. Only admins can change categories, company details
 **Server** (`server/`)
 - Express 5, knex + mysql2, migrations and seed data.
 - Prices are computed on the server; the server is authoritative for every total that is charged. Stock is checked and decremented inside a transaction.
-- Auth uses bcrypt password hashes and a JWT in an httpOnly cookie. CSRF is blocked with a required request header. Login and forms are rate-limited. Security headers come from helmet (CSP).
+- Auth uses bcrypt password hashes and a JWT in an httpOnly cookie. Google and Facebook sign-in use server-side OAuth with a state check; staff and admin accounts can only use their password. Email confirmation and reset links are single-use and stored hashed. CSRF is blocked with a required request header. Login and forms are rate-limited. Security headers come from helmet (CSP).
 - SEO (`server/seo.js`): every URL is answered with real HTML, so crawlers that don't run JavaScript still see a full page:
   - per-page title, description, canonical and robots; correct 404s; noindex on cart, account and admin pages
   - Open Graph and X cards with 1200×630 share images

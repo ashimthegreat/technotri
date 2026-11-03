@@ -230,7 +230,7 @@ r.put('/dealers/:id', async (req, res) => {
 });
 r.get('/customers', async (req, res) => {
   const rows = await db('users').orderBy('id', 'desc').limit(500)
-    .select('id', 'name', 'phone', 'email', 'role', 'dealer_status', 'active', 'created_at', 'last_login_at',
+    .select('id', 'name', 'phone', 'email', 'role', 'dealer_status', 'active', 'created_at', 'last_login_at', 'email_verified_at', db.raw('google_id is not null as google'), db.raw('facebook_id is not null as facebook'),
       db('orders').count('*').whereRaw('orders.user_id = users.id').as('orders'));
   res.json({ customers: rows });
 });

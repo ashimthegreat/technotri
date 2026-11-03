@@ -302,7 +302,7 @@ let after=null, routeSeq=0;
 function route(keepScroll){
   const h=current();
   let name=h, arg='';
-  const m=h.match(/^(c|p|search|g|order|admin)-(.+)$/);
+  const m=h.match(/^(c|p|search|g|order|admin|reset)-(.+)$/);
   if(m){name=m[1];arg=m[2]}
   const v=Views[name]||Views.notfound||Views.home;
   after=null; routeSeq++;
@@ -403,7 +403,7 @@ F.news=async f=>{const v=f.email.value.trim();if(!/^\S+@\S+\.\S+$/.test(v)){toas
 /* ---------------- boot ---------------- */
 function applyBootstrap(b){
   D.CATS=b.categories;D.ZONES=b.zones;D.COUPONS=b.coupons;D.PROTECT=b.protection;D.COMPANY=b.company||{};
-  D.GUIDES=b.guides||[];D.KITS=b.kits||[];D.FAQ=b.faq||[];D.SLIDES=b.slides||[];D.SITE=b.site||{};
+  D.AUTH=b.auth||{};D.GUIDES=b.guides||[];D.KITS=b.kits||[];D.FAQ=b.faq||[];D.SLIDES=b.slides||[];D.SITE=b.site||{};
   db.products=b.products;byId=new Map(b.products.map(p=>[p.id,p]));db.deals=b.deals||[];
   setUser(b.user);
   if(!D.ZONES.find(z=>z.id===db.zone)&&D.ZONES[0]) db.zone=D.ZONES[0].id;
@@ -418,6 +418,13 @@ async function boot(){
   try{applyBootstrap(await api('/bootstrap'))}
   catch(e){document.getElementById('app').innerHTML=`<div class="empty"><b>The store could not load.</b><span>${esc(e.message)}</span><button class="btn" data-a="reload">Try again</button></div>`;return}
   buildHeader();route();
+  // Messages passed back from sign-in, email links and Google/Facebook (e.g. /account?m=verified)
+  const q=new URLSearchParams(location.search),m=q.get('m');
+  if(m){const MSG={verified:'Thank you. Your email is confirmed.',verify_failed:'That confirmation link has expired or was already used. Resend it from your account page.',
+    oauth_off:'That sign-in option is not set up yet.',oauth_cancelled:'Sign-in was cancelled.',oauth_error:'Sign-in did not complete. Please try again.',
+    oauth_noemail:'Facebook did not share an email address. Create an account with your email instead.',oauth_unverified:'That account\'s email is not confirmed. Sign in with your password instead.',
+    disabled:'This account is disabled. Call us if you think this is a mistake.',staff_password:'Staff accounts sign in with email and password.'};
+    if(MSG[m])toast(MSG[m]);history.replaceState({},'',location.pathname)}
 }
 
 window.TT={extrasCache:extras,D,art,Store,get db(){return db},api,esc,npr,r10,prod,cat,zone,slug,hash,nptNow,dayIndex,fmtDate,fmtStamp,etaDate,isDealer,isStaff,
