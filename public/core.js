@@ -237,6 +237,7 @@ const UI={
     set('cCart',db.cart.reduce((a,l)=>a+l.qty,0));set('cWish',db.wish.length);set('cCmp',db.compare.length);
     const q=document.getElementById('navQuote');if(q)q.textContent=db.quoteList.length?`Business & quotes (${db.quoteList.length})`:'Business & quotes';
     const acc=document.getElementById('accLbl');if(acc)acc.textContent=db.user?db.user.name.split(' ')[0]:'Sign in';
+    const ab=document.getElementById('adminBtn');if(ab)ab.hidden=!isStaff();
     const z=document.getElementById('zoneSel');if(z)z.value=db.zone;
     UI.cmpBar();
   },
